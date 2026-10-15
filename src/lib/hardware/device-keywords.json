@@ -1,0 +1,22 @@
+[
+  {
+    "sku": "FDS-10",
+    "keywords": ["fds-10", "fds10", "card issuer", "card encoder", "rfid writer", "ic writer", "desktop usb"]
+  },
+  {
+    "sku": "PRS10-600",
+    "keywords": ["prs10", "sigma", "entrust", "datacard", "direct-to-card", "dice", "dsc", "id printer", "card printer"]
+  },
+  {
+    "sku": "RDS-20",
+    "keywords": ["rds-20", "rds20", "wiegand", "ic card reader", "card reader"]
+  },
+  {
+    "sku": "FRS10",
+    "keywords": ["frs10", "frs-10", "face recognition", "face terminal"]
+  },
+  {
+    "sku": "ACS11-M2",
+    "keywords": ["acs11", "access control", "wg5000", "door controller"]
+  }
+]

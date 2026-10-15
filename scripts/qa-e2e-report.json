@@ -1,0 +1,218 @@
+{
+  "tag": "QA-E2E-1791167715042",
+  "report": [
+    {
+      "section": "Setup",
+      "name": "Application reachable",
+      "status": "PASS",
+      "notes": "200"
+    },
+    {
+      "section": "Auth",
+      "name": "1. Login as administrator + select school/year",
+      "status": "PASS",
+      "notes": "Aspen Grove Elementary / 2025-2026"
+    },
+    {
+      "section": "Auth",
+      "name": "Invalid password rejected",
+      "status": "PASS",
+      "notes": ""
+    },
+    {
+      "section": "Security",
+      "name": "Unauthorized API requests → 401",
+      "status": "PASS",
+      "notes": "status 401"
+    },
+    {
+      "section": "Users",
+      "name": "2. Create test user",
+      "status": "PASS",
+      "notes": "cmuun0eh10009xjwehkth3psn"
+    },
+    {
+      "section": "Users",
+      "name": "3. Assign appropriate role (REGISTRAR)",
+      "status": "PASS",
+      "notes": ""
+    },
+    {
+      "section": "Edge",
+      "name": "Duplicate user email rejected",
+      "status": "PASS",
+      "notes": "A user with this email already exists."
+    },
+    {
+      "section": "Records",
+      "name": "4–5. Create student with required + extended info",
+      "status": "PASS",
+      "notes": "cmuun0ehl000dxjweb672afb8"
+    },
+    {
+      "section": "Edge",
+      "name": "Missing grade rejected",
+      "status": "PASS",
+      "notes": "Grade is required"
+    },
+    {
+      "section": "Edge",
+      "name": "Invalid email rejected",
+      "status": "PASS",
+      "notes": "Invalid email"
+    },
+    {
+      "section": "Edge",
+      "name": "Duplicate student ID rejected",
+      "status": "PASS",
+      "notes": "A record with this ID already exists for this school year"
+    },
+    {
+      "section": "Edge",
+      "name": "Very long first name rejected (>100)",
+      "status": "PASS",
+      "notes": "String must contain at most 100 character(s)"
+    },
+    {
+      "section": "Edge",
+      "name": "Special characters / markup in name accepted (stored)",
+      "status": "PASS",
+      "notes": "Verify rendering escapes in UI (browser)"
+    },
+    {
+      "section": "Templates",
+      "name": "6–8. Create portrait template (front + back fields)",
+      "status": "PASS",
+      "notes": ""
+    },
+    {
+      "section": "Templates",
+      "name": "8. Landscape template created",
+      "status": "PASS",
+      "notes": ""
+    },
+    {
+      "section": "Templates",
+      "name": "13. Edit saved layout",
+      "status": "PASS",
+      "notes": ""
+    },
+    {
+      "section": "Print",
+      "name": "15–16. Generate ID + data matches source",
+      "status": "PASS",
+      "notes": "first/last/id/grade OK"
+    },
+    {
+      "section": "Print",
+      "name": "Landscape print batch",
+      "status": "PASS",
+      "notes": ""
+    },
+    {
+      "section": "Print",
+      "name": "Markup in print payload (no server strip)",
+      "status": "PASS",
+      "notes": "UI must escape on render"
+    },
+    {
+      "section": "Records",
+      "name": "17. Search finds test student",
+      "status": "PASS",
+      "notes": "count 1"
+    },
+    {
+      "section": "Security",
+      "name": "Search SQL-like input does not 500",
+      "status": "PASS",
+      "notes": "status 200"
+    },
+    {
+      "section": "Records",
+      "name": "18. Update person information",
+      "status": "PASS",
+      "notes": ""
+    },
+    {
+      "section": "Records",
+      "name": "19. Generated ID reflects update",
+      "status": "PASS",
+      "notes": "OConnor-Updated"
+    },
+    {
+      "section": "Performance",
+      "name": "Large dataset (15 creates + list)",
+      "status": "PASS",
+      "notes": "created 15/15"
+    },
+    {
+      "section": "Performance",
+      "name": "List 100 students responds",
+      "status": "PASS",
+      "notes": "returned 34"
+    },
+    {
+      "section": "Resilience",
+      "name": "Slow API responses",
+      "status": "WARN",
+      "notes": "Not simulated in dev; no artificial delay endpoint"
+    },
+    {
+      "section": "Resilience",
+      "name": "Database failures",
+      "status": "WARN",
+      "notes": "Not simulated (would require stopping SQLite)"
+    },
+    {
+      "section": "Records",
+      "name": "20. Delete test student",
+      "status": "PASS",
+      "notes": ""
+    },
+    {
+      "section": "Records",
+      "name": "21. Deleted record not returned active",
+      "status": "PASS",
+      "notes": "status 404"
+    },
+    {
+      "section": "Templates",
+      "name": "Cleanup QA templates",
+      "status": "PASS",
+      "notes": ""
+    },
+    {
+      "section": "Users",
+      "name": "Cleanup test registrar user",
+      "status": "PASS",
+      "notes": "status 404"
+    },
+    {
+      "section": "Auth",
+      "name": "22. Logout (session isolated)",
+      "status": "PASS",
+      "notes": "New cookie jar for operator"
+    },
+    {
+      "section": "Auth",
+      "name": "23. Login with lower-permission account",
+      "status": "PASS",
+      "notes": ""
+    },
+    {
+      "section": "Auth",
+      "name": "24. Restricted school-users API forbidden",
+      "status": "PASS",
+      "notes": "No school selected. Please select a school first."
+    },
+    {
+      "section": "Auth",
+      "name": "Operator student access without multi-school pick",
+      "status": "WARN",
+      "notes": "Operator has no auto school in JWT (multi-school org)"
+    }
+  ],
+  "pass": 32,
+  "fail": 0,
+  "warn": 3
+}

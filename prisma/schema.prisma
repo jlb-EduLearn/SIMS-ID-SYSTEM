@@ -1,0 +1,323 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  SCHOOL_ADMIN
+  REGISTRAR
+  OPERATOR
+}
+
+enum StudentCategory {
+  PRE_KINDER
+  KINDER
+  GRADE_SCHOOL
+  JUNIOR_HIGH
+  SENIOR_HIGH
+  TERTIARY
+}
+
+enum RecordType {
+  STUDENT
+  TEACHER
+}
+
+enum TemplateOrientation {
+  PORTRAIT
+  LANDSCAPE
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  schools School[]
+  users   User[]
+
+  @@map("organizations")
+}
+
+model School {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  code           String
+  address        String?
+  logoUrl        String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userSchools  UserSchool[]
+  schoolYears  SchoolYear[]
+  students     Student[]
+  sections     GradeSection[]
+  templates    IdTemplate[]
+  printBatches IdPrintBatch[]
+  hardwareConfig SchoolHardwareConfig?
+
+  @@unique([organizationId, code])
+  @@index([organizationId])
+  @@map("schools")
+}
+
+model SchoolYear {
+  id        String   @id @default(cuid())
+  schoolId  String
+  name      String
+  isActive  Boolean  @default(true)
+  isCurrent Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school       School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  students     Student[]
+  sections     GradeSection[]
+  printBatches IdPrintBatch[]
+
+  @@unique([schoolId, name])
+  @@index([schoolId])
+  @@map("school_years")
+}
+
+model GradeSection {
+  id           String          @id @default(cuid())
+  schoolId     String
+  schoolYearId String
+  category     StudentCategory @default(GRADE_SCHOOL)
+  grade        String
+  name         String
+  isActive     Boolean         @default(true)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  school     School     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  schoolYear SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+
+  @@unique([schoolId, schoolYearId, grade, name])
+  @@index([schoolId, schoolYearId, category, grade])
+  @@map("grade_sections")
+}
+
+model User {
+  id             String   @id @default(cuid())
+  organizationId String
+  email          String   @unique
+  passwordHash   String
+  name           String
+  role           UserRole @default(OPERATOR)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userSchools  UserSchool[]
+  printBatches IdPrintBatch[] @relation("PrintBatchPrintedBy")
+
+  @@index([organizationId])
+  @@map("users")
+}
+
+model UserSchool {
+  id       String @id @default(cuid())
+  userId   String
+  schoolId String
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, schoolId])
+  @@index([userId])
+  @@index([schoolId])
+  @@map("user_schools")
+}
+
+model Student {
+  id              String          @id @default(cuid())
+  schoolId        String
+  schoolYearId    String
+  recordType      RecordType      @default(STUDENT)
+  studentId       String
+  category        StudentCategory @default(GRADE_SCHOOL)
+  firstName       String
+  lastName        String
+  middleName      String?
+  suffix          String?
+  grade           String?
+  customGradeName String?
+  course          String?
+  department      String?
+  position        String?
+  designation     String?
+  dateHired       String?
+  employeeNumber  String?
+  learnerReferenceNumber String?
+  escNumber       String?
+  studentNumber   String?
+  section         String?
+  dateOfBirth     String?
+  birthplace      String?
+  gender          String?
+  citizenship     String?
+  religion        String?
+  civilStatus     String?
+  tinNumber       String?
+  sssNumber       String?
+  philhealthNumber String?
+  pagIbigNumber   String?
+  isTeaching      Boolean?
+  requiresTimeInOut Boolean?
+  addressStreet   String?
+  barangay        String?
+  municipality    String?
+  province        String?
+  country         String?
+  zipCode         String?
+  address         String?
+  contactPhone    String?
+  landline        String?
+  contactRelationship String?
+  email           String?
+  emergencyContactRelation String?
+  emergencyContactPerson String?
+  emergencyFirstName  String?
+  emergencyMiddleName String?
+  emergencyLastName   String?
+  emergencyAddress    String?
+  emergencyPhone      String?
+  fatherLastName      String?
+  fatherFirstName     String?
+  fatherMiddleName    String?
+  fatherSuffix        String?
+  motherLastName      String?
+  motherFirstName     String?
+  motherMiddleName    String?
+  guardianLastName    String?
+  guardianFirstName   String?
+  guardianMiddleName  String?
+  photoUrl        String?
+  signatureUrl    String?
+  customFields    String?
+  cardUid              String?
+  wiegandFacilityCode  String?
+  wiegandCardNumber    String?
+  cardIssuedAt         DateTime?
+  isActive        Boolean         @default(true)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  school          School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  schoolYear      SchoolYear        @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+  printLogEntries IdPrintLogEntry[]
+
+  @@unique([schoolId, schoolYearId, studentId])
+  @@index([schoolId])
+  @@index([schoolYearId])
+  @@index([schoolId, schoolYearId, lastName, firstName])
+  @@index([schoolId, schoolYearId, recordType])
+  @@index([schoolId, schoolYearId, category])
+  @@index([schoolId, schoolYearId, grade])
+  @@index([schoolId, schoolYearId, cardUid])
+  @@index([schoolId, schoolYearId, wiegandCardNumber])
+  @@map("students")
+}
+
+model SchoolHardwareConfig {
+  id                    String   @id @default(cuid())
+  schoolId              String   @unique
+  wiegandFormat         String   @default("26")
+  accessControlHost     String?
+  accessControlPort     Int      @default(4370)
+  accessControlProtocol String   @default("WG5000")
+  printerProfile        String   @default("ENTRUST_SIGMA_PRS10")
+  faceTerminalEnabled   Boolean  @default(true)
+  metalDetectorEnabled  Boolean  @default(false)
+  /** Secret path segment for public entry info board: /board/{boardToken} */
+  boardToken            String?  @unique
+  boardHeadline         String?
+  boardSubtitle         String?
+  boardAnnouncement     String?
+  boardAnnouncementOn   Boolean  @default(true)
+  boardWelcomeText      String?
+  boardFooterText       String?
+  boardAccentColor      String   @default("#38bdf8")
+  boardShowClock        Boolean  @default(true)
+  boardFlashSeconds     Int      @default(7)
+  notes                 String?
+  updatedAt             DateTime @updatedAt
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@map("school_hardware_configs")
+}
+
+model IdTemplate {
+  id          String              @id @default(cuid())
+  schoolId    String
+  name        String
+  description String?
+  orientation TemplateOrientation @default(LANDSCAPE)
+  width       Int                 @default(1011)
+  height      Int                 @default(638)
+  frontDesign String
+  backDesign  String?
+  isDefault   Boolean             @default(false)
+  isActive    Boolean             @default(true)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  school       School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  printBatches IdPrintBatch[]
+
+  @@index([schoolId])
+  @@map("id_templates")
+}
+
+model IdPrintBatch {
+  id           String   @id @default(cuid())
+  schoolId     String
+  schoolYearId String
+  templateId   String?
+  templateName String
+  printedById  String
+  studentCount Int
+  createdAt    DateTime @default(now())
+
+  school     School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  schoolYear SchoolYear        @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+  template   IdTemplate?       @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  printedBy  User              @relation("PrintBatchPrintedBy", fields: [printedById], references: [id], onDelete: Cascade)
+  entries    IdPrintLogEntry[]
+
+  @@index([schoolId, schoolYearId, createdAt])
+  @@map("id_print_batches")
+}
+
+model IdPrintLogEntry {
+  id            String   @id @default(cuid())
+  batchId       String
+  studentId     String
+  studentNumber String
+  studentName   String
+  grade         String?
+  section       String?
+  createdAt     DateTime @default(now())
+
+  batch   IdPrintBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  student Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([batchId])
+  @@index([studentId])
+  @@index([studentId, createdAt])
+  @@map("id_print_log_entries")
+}

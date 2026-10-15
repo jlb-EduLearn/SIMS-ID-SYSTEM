@@ -1,0 +1,14 @@
+{
+  "name": "sims-hardware-tray",
+  "private": true,
+  "type": "module",
+  "main": "main.mjs",
+  "scripts": {
+    "start": "electron .",
+    "install-autostart": "node install-autostart.mjs",
+    "uninstall-autostart": "node install-autostart.mjs --remove"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0"
+  }
+}

@@ -1,0 +1,466 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { IdCardRenderer } from "@/components/id-card/id-card-renderer";
+import {
+  parseTemplateDesign,
+  type StudentPrintData,
+  type TemplateDesign,
+} from "@/types/template";
+import { toast } from "@/hooks/use-toast";
+import { Badge } from "@/components/ui/badge";
+import Link from "next/link";
+import {
+  Printer,
+  Search,
+  Loader2,
+  CheckSquare,
+  Square,
+} from "lucide-react";
+
+interface Student {
+  id: string;
+  studentId: string;
+  firstName: string;
+  lastName: string;
+  middleName: string | null;
+  grade: string | null;
+  section: string | null;
+  printCount?: number;
+}
+
+interface Template {
+  id: string;
+  name: string;
+  width: number;
+  height: number;
+  frontDesign: string;
+  backDesign: string | null;
+}
+
+export default function PrintPage() {
+  const [students, setStudents] = useState<Student[]>([]);
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [templateId, setTemplateId] = useState("");
+  const [search, setSearch] = useState("");
+  const [gradeFilter, setGradeFilter] = useState("");
+  const [sectionFilter, setSectionFilter] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [listTotal, setListTotal] = useState(0);
+  const [listLimit, setListLimit] = useState(500);
+  const [gradeOptions, setGradeOptions] = useState<string[]>([]);
+  const [sectionOptions, setSectionOptions] = useState<string[]>([]);
+  const [printing, setPrinting] = useState(false);
+  const [loggingPrint, setLoggingPrint] = useState(false);
+  const [printData, setPrintData] = useState<{
+    template: Template;
+    students: StudentPrintData[];
+    frontDesign: TemplateDesign;
+    backDesign: TemplateDesign | null;
+  } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/templates")
+      .then((r) => r.json())
+      .then((templateData) => {
+        const tpls = templateData.templates || [];
+        setTemplates(tpls);
+        const defaultTpl = tpls.find(
+          (t: Template & { isDefault?: boolean }) => t.isDefault
+        );
+        if (defaultTpl) setTemplateId(defaultTpl.id);
+        else if (tpls.length > 0) setTemplateId(tpls[0].id);
+      });
+  }, []);
+
+  useEffect(() => {
+    setLoading(true);
+    const params = new URLSearchParams({
+      recordType: "STUDENT",
+      limit: "500",
+      page: "1",
+    });
+    if (search.trim()) params.set("search", search.trim());
+    if (gradeFilter) params.set("grade", gradeFilter);
+    if (sectionFilter) params.set("section", sectionFilter);
+
+    const delay = search.trim() ? 300 : 0;
+    const t = setTimeout(() => {
+      fetch(`/api/students?${params}`)
+        .then((r) => r.json())
+        .then((data) => {
+          setStudents(data.students || []);
+          setListTotal(data.pagination?.total ?? 0);
+          setListLimit(data.pagination?.limit ?? 500);
+          if (data.filters?.grades) {
+            setGradeOptions(
+              (data.filters.grades as string[]).filter(Boolean).sort()
+            );
+          }
+          if (data.filters?.sections) {
+            setSectionOptions(
+              (data.filters.sections as string[]).filter(Boolean).sort()
+            );
+          }
+          setLoading(false);
+        })
+        .catch(() => setLoading(false));
+    }, delay);
+
+    return () => clearTimeout(t);
+  }, [search, gradeFilter, sectionFilter]);
+
+  const filtered = students;
+  const filteredIds = filtered.map((s) => s.id);
+  const listTruncated = listTotal > filtered.length;
+  const allFilteredSelected =
+    filteredIds.length > 0 && filteredIds.every((id) => selectedIds.has(id));
+
+  const toggleAll = () => {
+    const filteredIds = filtered.map((s) => s.id);
+    const allFilteredSelected =
+      filteredIds.length > 0 && filteredIds.every((id) => selectedIds.has(id));
+
+    if (allFilteredSelected) {
+      const next = new Set(selectedIds);
+      filteredIds.forEach((id) => next.delete(id));
+      setSelectedIds(next);
+    } else {
+      setSelectedIds(new Set([...selectedIds, ...filteredIds]));
+    }
+  };
+
+  const toggleOne = (id: string) => {
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedIds(next);
+  };
+
+  const handleGenerate = useCallback(async () => {
+    if (selectedIds.size === 0) {
+      toast({ title: "Select at least one student", variant: "destructive" });
+      return;
+    }
+    if (!templateId) {
+      toast({ title: "Select a template", variant: "destructive" });
+      return;
+    }
+
+    setPrinting(true);
+    const res = await fetch("/api/print", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        studentIds: Array.from(selectedIds),
+        templateId,
+      }),
+    });
+
+    setPrinting(false);
+
+    if (!res.ok) {
+      const err = await res.json();
+      toast({ title: err.error || "Failed to generate", variant: "destructive" });
+      return;
+    }
+
+    const data = await res.json();
+    setPrintData({
+      template: data.template,
+      students: data.students,
+      frontDesign: parseTemplateDesign(data.template.frontDesign),
+      backDesign: data.template.backDesign
+        ? parseTemplateDesign(data.template.backDesign)
+        : null,
+    });
+  }, [selectedIds, templateId]);
+
+  async function handlePrint() {
+    if (!printData) return;
+
+    setLoggingPrint(true);
+    const res = await fetch("/api/print/log", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        templateId: printData.template.id,
+        studentIds: printData.students.map((s) => s.id),
+      }),
+    });
+    setLoggingPrint(false);
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => null);
+      toast({
+        title: "Could not log print",
+        description: err?.error || "Print will continue without logging.",
+        variant: "destructive",
+      });
+    } else {
+      const data = await res.json();
+      const counts = (data.printCounts || {}) as Record<string, number>;
+      setStudents((prev) =>
+        prev.map((s) =>
+          counts[s.id] != null ? { ...s, printCount: counts[s.id] } : s
+        )
+      );
+      toast({
+        title: "Print logged",
+        description: `${printData.students.length} ID(s) recorded in print history.`,
+      });
+    }
+
+    window.print();
+  }
+
+  const scale = 0.55;
+
+  return (
+    <div className="space-y-6">
+      <div className="no-print">
+        <h1 className="text-3xl font-bold tracking-tight">Print IDs</h1>
+        <p className="text-muted-foreground">
+          Select students and a template, then generate print-ready IDs. Clicking{" "}
+          <strong>Print</strong> saves a log entry (see{" "}
+          <Link href="/dashboard/print-logs" className="text-primary underline">
+            Print Logs
+          </Link>
+          ).
+        </p>
+        <p className="mt-2 rounded-lg border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+          <span className="font-medium text-foreground">Campus hardware:</span>{" "}
+          CR-80 templates (1011×638 px @ 300 dpi) print on{" "}
+          <span className="font-medium">Entrust Sigma PRS10-600</span> via your
+          system print dialog. Encode cards in{" "}
+          <Link href="/dashboard/settings" className="text-primary underline">
+            Settings → Campus hardware
+          </Link>
+          .
+        </p>
+      </div>
+
+      <div className="no-print grid gap-6 lg:grid-cols-2">
+        {/* Student selection */}
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search students..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <Button variant="outline" size="sm" onClick={toggleAll}>
+              {allFilteredSelected ? (
+                <CheckSquare className="h-4 w-4" />
+              ) : (
+                <Square className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Select
+              value={gradeFilter || "all"}
+              onValueChange={(v) => {
+                setGradeFilter(v === "all" ? "" : v);
+                setSectionFilter("");
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Bulk by grade" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All grades</SelectItem>
+                {gradeOptions.map((grade) => (
+                  <SelectItem key={grade} value={grade}>
+                    {grade}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={sectionFilter || "all"}
+              onValueChange={(v) => setSectionFilter(v === "all" ? "" : v)}
+              disabled={sectionOptions.length === 0}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Bulk by section" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All sections</SelectItem>
+                {sectionOptions.map((section) => (
+                  <SelectItem key={section} value={section}>
+                    {section}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1 rounded-lg border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+            <div className="flex items-center justify-between gap-2">
+              <span>
+                Showing {filtered.length} of {listTotal} student
+                {listTotal !== 1 ? "s" : ""}
+                {gradeFilter ? ` in ${gradeFilter}` : ""}
+                {sectionFilter ? ` · Section ${sectionFilter}` : ""}
+              </span>
+              <Button variant="ghost" size="sm" onClick={toggleAll}>
+                {allFilteredSelected ? "Unselect shown" : "Select shown"}
+              </Button>
+            </div>
+            {listTruncated && (
+              <p>
+                List capped at {listLimit}. Filter by grade or section (or
+                search) to load a smaller set.
+              </p>
+            )}
+          </div>
+
+          {loading ? (
+            <div className="flex justify-center py-10">
+              <Loader2 className="h-6 w-6 animate-spin" />
+            </div>
+          ) : (
+            <div className="max-h-80 overflow-y-auto rounded-lg border">
+              {filtered.map((s) => (
+                <label
+                  key={s.id}
+                  className="flex cursor-pointer items-center gap-3 border-b px-4 py-3 last:border-0 hover:bg-muted/30"
+                >
+                  <Checkbox
+                    checked={selectedIds.has(s.id)}
+                    onCheckedChange={() => toggleOne(s.id)}
+                  />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">
+                      {s.lastName}, {s.firstName}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {s.studentId} · {s.grade} {s.section}
+                    </p>
+                  </div>
+                  {(s.printCount ?? 0) > 0 && (
+                    <Badge variant="secondary" className="shrink-0 text-[10px]">
+                      Printed {s.printCount}×
+                    </Badge>
+                  )}
+                </label>
+              ))}
+            </div>
+          )}
+
+          <p className="text-sm text-muted-foreground">
+            {selectedIds.size} of {filtered.length} selected
+          </p>
+        </div>
+
+        {/* Template & actions */}
+        <div className="space-y-4">
+          <div>
+            <label className="text-sm font-medium">Template</label>
+            <Select value={templateId} onValueChange={setTemplateId}>
+              <SelectTrigger className="mt-1">
+                <SelectValue placeholder="Select template" />
+              </SelectTrigger>
+              <SelectContent>
+                {templates.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>
+                    {t.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex gap-2">
+            <Button
+              onClick={handleGenerate}
+              disabled={printing || selectedIds.size === 0}
+              className="flex-1"
+            >
+              {printing ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+              Generate Preview
+            </Button>
+            {printData && (
+              <Button
+                onClick={handlePrint}
+                variant="secondary"
+                disabled={loggingPrint}
+              >
+                {loggingPrint ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Printer className="mr-2 h-4 w-4" />
+                )}
+                Print & log
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Print preview area */}
+      {printData && (
+        <div className="print-area space-y-8">
+          {printData.students.map((student) => (
+            <div
+              key={student.id}
+              className="break-inside-avoid space-y-4 pb-8"
+            >
+              <div className="no-print text-sm font-medium text-muted-foreground">
+                {student.fullName} ({student.studentId})
+              </div>
+              <div className="flex flex-wrap gap-6">
+                <div>
+                  <p className="no-print mb-1 text-xs text-muted-foreground">
+                    Front
+                  </p>
+                  <IdCardRenderer
+                    design={printData.frontDesign}
+                    data={student}
+                    width={printData.template.width}
+                    height={printData.template.height}
+                    scale={scale}
+                  />
+                </div>
+                {printData.backDesign && (
+                  <div>
+                    <p className="no-print mb-1 text-xs text-muted-foreground">
+                      Back
+                    </p>
+                    <IdCardRenderer
+                      design={printData.backDesign}
+                      data={student}
+                      width={printData.template.width}
+                      height={printData.template.height}
+                      scale={scale}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
