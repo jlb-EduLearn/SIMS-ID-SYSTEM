@@ -20,11 +20,11 @@ export async function POST(req: NextRequest) {
   }
 
   if (!Array.isArray(studentIds) || studentIds.length === 0) {
-    return apiError("At least one student is required");
+    return apiError("At least one person is required");
   }
 
   if (studentIds.length > 100) {
-    return apiError("Maximum 100 students per print batch");
+    return apiError("Maximum 100 IDs per print batch");
   }
 
   const [template, school, students] = await Promise.all([
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (students.length !== studentIds.length) {
-    return apiError("Some students were not found or access denied", 403);
+    return apiError("Some records were not found or access denied", 403);
   }
 
   const printData = students.map((s) => studentToPrintData(s, school));

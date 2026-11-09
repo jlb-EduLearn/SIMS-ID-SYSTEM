@@ -21,11 +21,11 @@ export async function POST(req: NextRequest) {
   }
 
   if (!Array.isArray(studentIds) || studentIds.length === 0) {
-    return apiError("At least one student is required");
+    return apiError("At least one person is required");
   }
 
   if (studentIds.length > 100) {
-    return apiError("Maximum 100 students per print batch");
+    return apiError("Maximum 100 IDs per print batch");
   }
 
   const template = await prisma.idTemplate.findUnique({
@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
   });
 
   if (students.length !== studentIds.length) {
-    return apiError("Some students were not found or access denied", 403);
+    return apiError("Some records were not found or access denied", 403);
   }
 
   const batch = await prisma.idPrintBatch.create({
@@ -62,17 +62,22 @@ export async function POST(req: NextRequest) {
       printedById: session!.user.id,
       studentCount: students.length,
       entries: {
-        create: students.map((s) => ({
-          studentId: s.id,
-          studentNumber: s.studentId,
-          studentName: [s.firstName, s.middleName, s.lastName]
-            .filter(Boolean)
-            .join(" ")
-            .replace(/\s+/g, " ")
-            .trim(),
-          grade: s.grade,
-          section: s.section,
-        })),
+        create: students.map((s) => {
+          const isEmployee = s.recordType === "TEACHER";
+          return {
+            studentId: s.id,
+            studentNumber: s.studentId,
+            studentName: [s.firstName, s.middleName, s.lastName]
+              .filter(Boolean)
+              .join(" ")
+              .replace(/\s+/g, " ")
+              .trim(),
+            grade: isEmployee
+              ? s.designation || s.position || "Employee"
+              : s.grade,
+            section: isEmployee ? s.department || null : s.section,
+          };
+        }),
       },
     },
     include: {

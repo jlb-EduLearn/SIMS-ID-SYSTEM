@@ -26,8 +26,16 @@ export async function GET(req: NextRequest) {
   const search = searchParams.get("search") || "";
   const grade = searchParams.get("grade") || "";
   const section = searchParams.get("section") || "";
+  const department = searchParams.get("department") || "";
   const category = searchParams.get("category") || "";
   const recordType = searchParams.get("recordType") || "";
+  const isTeachingParam = searchParams.get("isTeaching");
+  const isTeachingFilter =
+    isTeachingParam === "true"
+      ? true
+      : isTeachingParam === "false"
+        ? false
+        : null;
   const unassignedOnly = searchParams.get("unassigned") === "1";
 
   let targetSchoolYearId = schoolYearId!;
@@ -65,10 +73,12 @@ export async function GET(req: NextRequest) {
         { firstName: { contains: search } },
         { lastName: { contains: search } },
         { studentId: { contains: search } },
+        { employeeNumber: { contains: search } },
         { email: { contains: search } },
         { course: { contains: search } },
         { department: { contains: search } },
         { position: { contains: search } },
+        { designation: { contains: search } },
         { emergencyFirstName: { contains: search } },
         { emergencyLastName: { contains: search } },
         { emergencyPhone: { contains: search } },
@@ -85,6 +95,8 @@ export async function GET(req: NextRequest) {
     ...(recordType ? { recordType: recordType as "STUDENT" | "TEACHER" } : {}),
     ...(grade ? { grade } : {}),
     ...(section ? { section } : {}),
+    ...(department ? { department } : {}),
+    ...(isTeachingFilter !== null ? { isTeaching: isTeachingFilter } : {}),
     ...(category ? { category: category as StudentCategory } : {}),
     ...(unassignedOnly && searchOr
       ? {
@@ -107,33 +119,39 @@ export async function GET(req: NextRequest) {
     ...(recordType ? { recordType: recordType as "STUDENT" | "TEACHER" } : {}),
   };
 
-  const [students, total, grades, sections, categories] = await Promise.all([
-    prisma.student.findMany({
-      where,
-      orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
-      skip: (page - 1) * limit,
-      take: limit,
-      include: {
-        _count: { select: { printLogEntries: true } },
-      },
-    }),
-    prisma.student.count({ where }),
-    prisma.student.findMany({
-      where: { ...baseWhere, grade: { not: null } },
-      select: { grade: true },
-      distinct: ["grade"],
-    }),
-    prisma.student.findMany({
-      where: { ...baseWhere, section: { not: null } },
-      select: { section: true },
-      distinct: ["section"],
-    }),
-    prisma.student.groupBy({
-      by: ["category"],
-      where: baseWhere,
-      _count: true,
-    }),
-  ]);
+  const [students, total, grades, sections, departments, categories] =
+    await Promise.all([
+      prisma.student.findMany({
+        where,
+        orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+        skip: (page - 1) * limit,
+        take: limit,
+        include: {
+          _count: { select: { printLogEntries: true } },
+        },
+      }),
+      prisma.student.count({ where }),
+      prisma.student.findMany({
+        where: { ...baseWhere, grade: { not: null } },
+        select: { grade: true },
+        distinct: ["grade"],
+      }),
+      prisma.student.findMany({
+        where: { ...baseWhere, section: { not: null } },
+        select: { section: true },
+        distinct: ["section"],
+      }),
+      prisma.student.findMany({
+        where: { ...baseWhere, department: { not: null } },
+        select: { department: true },
+        distinct: ["department"],
+      }),
+      prisma.student.groupBy({
+        by: ["category"],
+        where: baseWhere,
+        _count: true,
+      }),
+    ]);
 
   return apiSuccess({
     students: students.map(({ _count, ...student }) => ({
@@ -149,6 +167,10 @@ export async function GET(req: NextRequest) {
     filters: {
       grades: grades.map((g) => g.grade).filter(Boolean).sort(),
       sections: sections.map((s) => s.section).filter(Boolean).sort(),
+      departments: departments
+        .map((d) => d.department)
+        .filter(Boolean)
+        .sort(),
       categories: categories.map((c) => ({
         category: c.category,
         count: c._count,

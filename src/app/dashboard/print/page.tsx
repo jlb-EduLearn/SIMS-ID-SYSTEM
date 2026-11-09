@@ -29,7 +29,10 @@ import {
   Square,
 } from "lucide-react";
 
-interface Student {
+type PrintRecordType = "STUDENT" | "TEACHER";
+type StaffKindFilter = "all" | "teaching" | "admin";
+
+interface Person {
   id: string;
   studentId: string;
   firstName: string;
@@ -37,6 +40,11 @@ interface Student {
   middleName: string | null;
   grade: string | null;
   section: string | null;
+  department: string | null;
+  position: string | null;
+  designation: string | null;
+  isTeaching: boolean | null;
+  recordType: PrintRecordType;
   printCount?: number;
 }
 
@@ -49,19 +57,37 @@ interface Template {
   backDesign: string | null;
 }
 
+function personSubtitle(person: Person) {
+  if (person.recordType === "TEACHER") {
+    const role =
+      person.designation ||
+      person.position ||
+      (person.isTeaching === false ? "Admin staff" : "Teacher");
+    const parts = [person.studentId, role, person.department].filter(Boolean);
+    return parts.join(" · ");
+  }
+  return [person.studentId, person.grade, person.section]
+    .filter(Boolean)
+    .join(" · ");
+}
+
 export default function PrintPage() {
-  const [students, setStudents] = useState<Student[]>([]);
+  const [people, setPeople] = useState<Person[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [templateId, setTemplateId] = useState("");
+  const [recordType, setRecordType] = useState<PrintRecordType>("STUDENT");
+  const [staffKind, setStaffKind] = useState<StaffKindFilter>("all");
   const [search, setSearch] = useState("");
   const [gradeFilter, setGradeFilter] = useState("");
   const [sectionFilter, setSectionFilter] = useState("");
+  const [departmentFilter, setDepartmentFilter] = useState("");
   const [loading, setLoading] = useState(true);
   const [listTotal, setListTotal] = useState(0);
   const [listLimit, setListLimit] = useState(500);
   const [gradeOptions, setGradeOptions] = useState<string[]>([]);
   const [sectionOptions, setSectionOptions] = useState<string[]>([]);
+  const [departmentOptions, setDepartmentOptions] = useState<string[]>([]);
   const [printing, setPrinting] = useState(false);
   const [loggingPrint, setLoggingPrint] = useState(false);
   const pendingPrintLogRef = useRef<{
@@ -74,6 +100,10 @@ export default function PrintPage() {
     frontDesign: TemplateDesign;
     backDesign: TemplateDesign | null;
   } | null>(null);
+
+  const isEmployee = recordType === "TEACHER";
+  const personLabel = isEmployee ? "employee" : "student";
+  const personLabelPlural = isEmployee ? "employees" : "students";
 
   useEffect(() => {
     fetch("/api/templates")
@@ -92,20 +122,26 @@ export default function PrintPage() {
   useEffect(() => {
     setLoading(true);
     const params = new URLSearchParams({
-      recordType: "STUDENT",
+      recordType,
       limit: "500",
       page: "1",
     });
     if (search.trim()) params.set("search", search.trim());
-    if (gradeFilter) params.set("grade", gradeFilter);
-    if (sectionFilter) params.set("section", sectionFilter);
+    if (isEmployee) {
+      if (departmentFilter) params.set("department", departmentFilter);
+      if (staffKind === "teaching") params.set("isTeaching", "true");
+      if (staffKind === "admin") params.set("isTeaching", "false");
+    } else {
+      if (gradeFilter) params.set("grade", gradeFilter);
+      if (sectionFilter) params.set("section", sectionFilter);
+    }
 
     const delay = search.trim() ? 300 : 0;
     const t = setTimeout(() => {
       fetch(`/api/students?${params}`)
         .then((r) => r.json())
         .then((data) => {
-          setStudents(data.students || []);
+          setPeople(data.students || []);
           setListTotal(data.pagination?.total ?? 0);
           setListLimit(data.pagination?.limit ?? 500);
           if (data.filters?.grades) {
@@ -118,13 +154,26 @@ export default function PrintPage() {
               (data.filters.sections as string[]).filter(Boolean).sort()
             );
           }
+          if (data.filters?.departments) {
+            setDepartmentOptions(
+              (data.filters.departments as string[]).filter(Boolean).sort()
+            );
+          }
           setLoading(false);
         })
         .catch(() => setLoading(false));
     }, delay);
 
     return () => clearTimeout(t);
-  }, [search, gradeFilter, sectionFilter]);
+  }, [
+    search,
+    gradeFilter,
+    sectionFilter,
+    departmentFilter,
+    recordType,
+    staffKind,
+    isEmployee,
+  ]);
 
   const recordPrintLog = useCallback(
     async (payload: { templateId: string; studentIds: string[] }) => {
@@ -140,7 +189,9 @@ export default function PrintPage() {
         const err = await res.json().catch(() => null);
         toast({
           title: "Could not save print log",
-          description: err?.error || "The print completed but history was not recorded.",
+          description:
+            err?.error ||
+            "The print completed but history was not recorded.",
           variant: "destructive",
         });
         return;
@@ -148,7 +199,7 @@ export default function PrintPage() {
 
       const data = await res.json();
       const counts = (data.printCounts || {}) as Record<string, number>;
-      setStudents((prev) =>
+      setPeople((prev) =>
         prev.map((s) =>
           counts[s.id] != null ? { ...s, printCount: counts[s.id] } : s
         )
@@ -172,17 +223,25 @@ export default function PrintPage() {
     return () => window.removeEventListener("afterprint", onAfterPrint);
   }, [recordPrintLog]);
 
-  const filtered = students;
+  const filtered = people;
   const filteredIds = filtered.map((s) => s.id);
   const listTruncated = listTotal > filtered.length;
   const allFilteredSelected =
     filteredIds.length > 0 && filteredIds.every((id) => selectedIds.has(id));
 
-  const toggleAll = () => {
-    const filteredIds = filtered.map((s) => s.id);
-    const allFilteredSelected =
-      filteredIds.length > 0 && filteredIds.every((id) => selectedIds.has(id));
+  const switchRecordType = (next: PrintRecordType) => {
+    if (next === recordType) return;
+    setRecordType(next);
+    setSelectedIds(new Set());
+    setPrintData(null);
+    setSearch("");
+    setGradeFilter("");
+    setSectionFilter("");
+    setDepartmentFilter("");
+    setStaffKind("all");
+  };
 
+  const toggleAll = () => {
     if (allFilteredSelected) {
       const next = new Set(selectedIds);
       filteredIds.forEach((id) => next.delete(id));
@@ -201,7 +260,10 @@ export default function PrintPage() {
 
   const handleGenerate = useCallback(async () => {
     if (selectedIds.size === 0) {
-      toast({ title: "Select at least one student", variant: "destructive" });
+      toast({
+        title: `Select at least one ${personLabel}`,
+        variant: "destructive",
+      });
       return;
     }
     if (!templateId) {
@@ -223,7 +285,10 @@ export default function PrintPage() {
 
     if (!res.ok) {
       const err = await res.json();
-      toast({ title: err.error || "Failed to generate", variant: "destructive" });
+      toast({
+        title: err.error || "Failed to generate",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -236,7 +301,7 @@ export default function PrintPage() {
         ? parseTemplateDesign(data.template.backDesign)
         : null,
     });
-  }, [selectedIds, templateId]);
+  }, [selectedIds, templateId, personLabel]);
 
   function handlePrint() {
     if (!printData) return;
@@ -255,9 +320,10 @@ export default function PrintPage() {
       <div className="no-print">
         <h1 className="text-3xl font-bold tracking-tight">Print IDs</h1>
         <p className="text-muted-foreground">
-          Select students and a template, then generate a preview.{" "}
-          <strong>Generate Preview</strong> does not create a log. A log is saved
-          only after you finish the system print dialog (see{" "}
+          Select students or employees (teachers, staff, admin) and a template,
+          then generate a preview. <strong>Generate Preview</strong> does not
+          create a log. A log is saved only after you finish the system print
+          dialog (see{" "}
           <Link href="/dashboard/print-logs" className="text-primary underline">
             Print Logs
           </Link>
@@ -271,18 +337,40 @@ export default function PrintPage() {
           <Link href="/dashboard/settings" className="text-primary underline">
             Settings → Campus hardware
           </Link>
-          . Card encoding is in the student Access card tab.
+          . Card encoding is in the Access card tab on each record.
         </p>
       </div>
 
       <div className="no-print grid gap-6 lg:grid-cols-2">
-        {/* Student selection */}
         <div className="space-y-4">
+          <div className="inline-flex w-fit rounded-lg border bg-muted/40 p-1">
+            <Button
+              size="sm"
+              variant={!isEmployee ? "default" : "ghost"}
+              className="rounded-md"
+              onClick={() => switchRecordType("STUDENT")}
+            >
+              Students
+            </Button>
+            <Button
+              size="sm"
+              variant={isEmployee ? "default" : "ghost"}
+              className="rounded-md"
+              onClick={() => switchRecordType("TEACHER")}
+            >
+              Teachers & Staff
+            </Button>
+          </div>
+
           <div className="flex items-center gap-2">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Search students..."
+                placeholder={
+                  isEmployee
+                    ? "Search teachers, staff, admin..."
+                    : "Search students..."
+                }
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-10"
@@ -297,53 +385,99 @@ export default function PrintPage() {
             </Button>
           </div>
 
-          <div className="grid gap-2 sm:grid-cols-2">
-            <Select
-              value={gradeFilter || "all"}
-              onValueChange={(v) => {
-                setGradeFilter(v === "all" ? "" : v);
-                setSectionFilter("");
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Bulk by grade" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All grades</SelectItem>
-                {gradeOptions.map((grade) => (
-                  <SelectItem key={grade} value={grade}>
-                    {grade}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          {isEmployee ? (
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Select
+                value={staffKind}
+                onValueChange={(v) => setStaffKind(v as StaffKindFilter)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Employee type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All employees</SelectItem>
+                  <SelectItem value="teaching">Teachers</SelectItem>
+                  <SelectItem value="admin">Admin / non-teaching staff</SelectItem>
+                </SelectContent>
+              </Select>
 
-            <Select
-              value={sectionFilter || "all"}
-              onValueChange={(v) => setSectionFilter(v === "all" ? "" : v)}
-              disabled={sectionOptions.length === 0}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Bulk by section" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All sections</SelectItem>
-                {sectionOptions.map((section) => (
-                  <SelectItem key={section} value={section}>
-                    {section}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+              <Select
+                value={departmentFilter || "all"}
+                onValueChange={(v) =>
+                  setDepartmentFilter(v === "all" ? "" : v)
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Bulk by department" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All departments</SelectItem>
+                  {departmentOptions.map((department) => (
+                    <SelectItem key={department} value={department}>
+                      {department}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Select
+                value={gradeFilter || "all"}
+                onValueChange={(v) => {
+                  setGradeFilter(v === "all" ? "" : v);
+                  setSectionFilter("");
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Bulk by grade" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All grades</SelectItem>
+                  {gradeOptions.map((grade) => (
+                    <SelectItem key={grade} value={grade}>
+                      {grade}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={sectionFilter || "all"}
+                onValueChange={(v) => setSectionFilter(v === "all" ? "" : v)}
+                disabled={sectionOptions.length === 0}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Bulk by section" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All sections</SelectItem>
+                  {sectionOptions.map((section) => (
+                    <SelectItem key={section} value={section}>
+                      {section}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <div className="space-y-1 rounded-lg border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
             <div className="flex items-center justify-between gap-2">
               <span>
-                Showing {filtered.length} of {listTotal} student
-                {listTotal !== 1 ? "s" : ""}
-                {gradeFilter ? ` in ${gradeFilter}` : ""}
-                {sectionFilter ? ` · Section ${sectionFilter}` : ""}
+                Showing {filtered.length} of {listTotal}{" "}
+                {listTotal === 1 ? personLabel : personLabelPlural}
+                {!isEmployee && gradeFilter ? ` in ${gradeFilter}` : ""}
+                {!isEmployee && sectionFilter
+                  ? ` · Section ${sectionFilter}`
+                  : ""}
+                {isEmployee && staffKind === "teaching" ? " · Teachers" : ""}
+                {isEmployee && staffKind === "admin"
+                  ? " · Admin / staff"
+                  : ""}
+                {isEmployee && departmentFilter
+                  ? ` · ${departmentFilter}`
+                  : ""}
               </span>
               <Button variant="ghost" size="sm" onClick={toggleAll}>
                 {allFilteredSelected ? "Unselect shown" : "Select shown"}
@@ -351,8 +485,9 @@ export default function PrintPage() {
             </div>
             {listTruncated && (
               <p>
-                List capped at {listLimit}. Filter by grade or section (or
-                search) to load a smaller set.
+                List capped at {listLimit}. Filter
+                {isEmployee ? " by department or type" : " by grade or section"}{" "}
+                (or search) to load a smaller set.
               </p>
             )}
           </div>
@@ -360,6 +495,11 @@ export default function PrintPage() {
           {loading ? (
             <div className="flex justify-center py-10">
               <Loader2 className="h-6 w-6 animate-spin" />
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="rounded-lg border px-4 py-10 text-center text-sm text-muted-foreground">
+              No {personLabelPlural} found. Add them under Students → Teachers,
+              then return here to print IDs.
             </div>
           ) : (
             <div className="max-h-80 overflow-y-auto rounded-lg border">
@@ -377,9 +517,14 @@ export default function PrintPage() {
                       {s.lastName}, {s.firstName}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {s.studentId} · {s.grade} {s.section}
+                      {personSubtitle(s)}
                     </p>
                   </div>
+                  {isEmployee && (
+                    <Badge variant="outline" className="shrink-0 text-[10px]">
+                      {s.isTeaching === false ? "Staff" : "Teacher"}
+                    </Badge>
+                  )}
                   {(s.printCount ?? 0) > 0 && (
                     <Badge variant="secondary" className="shrink-0 text-[10px]">
                       Printed {s.printCount}×
@@ -395,7 +540,6 @@ export default function PrintPage() {
           </p>
         </div>
 
-        {/* Template & actions */}
         <div className="space-y-4">
           <div>
             <label className="text-sm font-medium">Template</label>
@@ -411,6 +555,13 @@ export default function PrintPage() {
                 ))}
               </SelectContent>
             </Select>
+            {isEmployee && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Use a staff template with fields like department, designation,
+                and employee number — or reuse your student template if those
+                fields are mapped.
+              </p>
+            )}
           </div>
 
           <div className="flex gap-2">
@@ -442,7 +593,6 @@ export default function PrintPage() {
         </div>
       </div>
 
-      {/* Print preview area */}
       {printData && (
         <div className="print-area space-y-8">
           {printData.students.map((student) => (
