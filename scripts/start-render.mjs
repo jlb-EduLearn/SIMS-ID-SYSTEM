@@ -28,7 +28,16 @@ if (!process.env.DATABASE_URL) {
   process.env.DATABASE_URL = "file:/var/data/prod.db";
 }
 
-ensureSqliteDir(process.env.DATABASE_URL);
+try {
+  ensureSqliteDir(process.env.DATABASE_URL);
+} catch (err) {
+  // Free instances have no /var/data disk — fall back so the app still boots.
+  console.warn(
+    `==> Could not prepare ${process.env.DATABASE_URL} (${err instanceof Error ? err.message : err}). Falling back to file:./prod.db`
+  );
+  process.env.DATABASE_URL = "file:./prod.db";
+  ensureSqliteDir(process.env.DATABASE_URL);
+}
 
 if (!process.env.NEXTAUTH_URL && process.env.RENDER_EXTERNAL_URL) {
   process.env.NEXTAUTH_URL = process.env.RENDER_EXTERNAL_URL.replace(/\/$/, "");
