@@ -5,18 +5,40 @@ export const loginSchema = z.object({
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
-export const schoolUserSchema = z.object({
-  name: z.string().min(1, "Name is required").max(100),
-  email: z.string().email("Invalid email address").max(150),
-  password: z
-    .string()
-    .min(6, "Password must be at least 6 characters")
-    .max(100)
-    .optional()
-    .or(z.literal("")),
-  role: z.enum(["SCHOOL_ADMIN", "REGISTRAR", "OPERATOR"]),
-  isActive: z.boolean().optional(),
-});
+export const schoolUserSchema = z
+  .object({
+    name: z.string().min(1, "Name is required").max(100),
+    email: z.string().min(1, "Login is required").max(150),
+    password: z
+      .string()
+      .min(6, "Password must be at least 6 characters")
+      .max(100)
+      .optional()
+      .or(z.literal("")),
+    role: z.enum(["SCHOOL_ADMIN", "REGISTRAR", "OPERATOR", "SCANNER"]),
+    isActive: z.boolean().optional(),
+  })
+  .superRefine((data, ctx) => {
+    const login = data.email.trim();
+    if (data.role === "SCANNER") {
+      const ok = /^[a-zA-Z0-9._-]{3,64}$/.test(login) || z.string().email().safeParse(login).success;
+      if (!ok) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["email"],
+          message: "Use a scanner username (e.g. age-scanner1) or a valid email",
+        });
+      }
+      return;
+    }
+    if (!z.string().email().safeParse(login).success) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["email"],
+        message: "Invalid email address",
+      });
+    }
+  });
 
 export const schoolSchema = z.object({
   name: z.string().min(1, "School name is required").max(150),

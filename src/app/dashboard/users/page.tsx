@@ -31,7 +31,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, Pencil, Plus, Shield, Trash2, UserCog } from "lucide-react";
 
-type SchoolUserRole = "SCHOOL_ADMIN" | "REGISTRAR" | "OPERATOR";
+type SchoolUserRole = "SCHOOL_ADMIN" | "REGISTRAR" | "OPERATOR" | "SCANNER";
 
 interface SchoolUser {
   id: string;
@@ -47,7 +47,16 @@ const ROLE_LABELS: Record<SchoolUserRole | "ADMIN", string> = {
   SCHOOL_ADMIN: "School Admin",
   REGISTRAR: "Registrar",
   OPERATOR: "Operator",
+  SCANNER: "Scanner",
 };
+
+function displayLogin(user: SchoolUser) {
+  if (user.role !== "SCANNER") return user.email;
+  const email = user.email.toLowerCase();
+  return email.endsWith("@scanner.local")
+    ? email.slice(0, -"@scanner.local".length)
+    : user.email;
+}
 
 const emptyForm = {
   name: "",
@@ -121,9 +130,9 @@ export default function SchoolUsersPage() {
     setEditing(user);
     setForm({
       name: user.name,
-      email: user.email,
+      email: displayLogin(user),
       password: "",
-      role: user.role === "ADMIN" ? "SCHOOL_ADMIN" : user.role,
+      role: user.role === "ADMIN" ? "SCHOOL_ADMIN" : (user.role as SchoolUserRole),
       isActive: user.isActive,
     });
     setDialogOpen(true);
@@ -187,7 +196,9 @@ export default function SchoolUsersPage() {
           </div>
           <h1 className="text-3xl font-bold tracking-tight">School Users</h1>
           <p className="text-muted-foreground">
-            Add Registrar or School Admin users for the selected school only.
+            Add Registrar, School Admin, Operator, or Scanner station logins for
+            this school. Scanner accounts sign in at{" "}
+            <span className="font-medium text-foreground">/scanner</span>.
           </p>
         </div>
         <Button onClick={openCreate}>
@@ -218,7 +229,7 @@ export default function SchoolUsersPage() {
                       {user.name}
                     </CardTitle>
                     <CardDescription className="truncate">
-                      {user.email}
+                      {displayLogin(user)}
                     </CardDescription>
                     <div className="mt-2 flex flex-wrap gap-2">
                       <Badge variant={user.role === "ADMIN" ? "default" : "secondary"}>
@@ -271,13 +282,25 @@ export default function SchoolUsersPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Email</Label>
+              <Label>
+                {form.role === "SCANNER" ? "Scanner username" : "Email"}
+              </Label>
               <Input
-                type="email"
+                type={form.role === "SCANNER" ? "text" : "email"}
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
-                placeholder="registrar@school.edu"
+                placeholder={
+                  form.role === "SCANNER"
+                    ? "age-scanner1"
+                    : "registrar@school.edu"
+                }
               />
+              {form.role === "SCANNER" && (
+                <p className="text-xs text-muted-foreground">
+                  Station login uses this username and password at /scanner.
+                  Example: age-scanner1 / 12345678
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label>
@@ -307,6 +330,7 @@ export default function SchoolUsersPage() {
                   <SelectItem value="REGISTRAR">Registrar</SelectItem>
                   <SelectItem value="SCHOOL_ADMIN">School Admin</SelectItem>
                   <SelectItem value="OPERATOR">Operator</SelectItem>
+                  <SelectItem value="SCANNER">Scanner</SelectItem>
                 </SelectContent>
               </Select>
             </div>

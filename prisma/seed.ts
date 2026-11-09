@@ -142,6 +142,17 @@ async function main() {
     },
   });
 
+  const scannerPasswordHash = await bcrypt.hash("12345678", 10);
+  const scanner = await prisma.user.create({
+    data: {
+      organizationId: org.id,
+      email: "age-scanner1@scanner.local",
+      passwordHash: scannerPasswordHash,
+      name: "AGE Scanner 1",
+      role: "SCANNER",
+    },
+  });
+
   const frontDesign = JSON.stringify(createDefaultFrontDesign());
   const backDesign = JSON.stringify(createDefaultBackDesign());
 
@@ -159,6 +170,12 @@ async function main() {
     if (i < 5) {
       await prisma.userSchool.create({
         data: { userId: operator.id, schoolId: school.id },
+      });
+    }
+
+    if (i === 0) {
+      await prisma.userSchool.create({
+        data: { userId: scanner.id, schoolId: school.id },
       });
     }
 
@@ -242,6 +259,7 @@ async function main() {
   console.log(`  Schools: ${SCHOOL_NAMES.length} (each with own templates)`);
   console.log(`  School years: 2024-2025 & 2025-2026 per school`);
   console.log(`  Admin: admin@demo.org / password123`);
+  console.log(`  Scanner: age-scanner1 / 12345678  (open /scanner)`);
 }
 
 main()

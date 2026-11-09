@@ -9,12 +9,18 @@ export default withAuth(
     const isDashboard = pathname.startsWith("/dashboard");
     const isSelectSchool = pathname === "/select-school";
     const isSelectYear = pathname === "/select-school-year";
+    const isScanner = pathname.startsWith("/scanner");
 
-    if (!token?.currentSchoolId && (isDashboard || isSelectYear)) {
+    if (token?.role === "SCANNER" && (isDashboard || isSelectSchool || isSelectYear)) {
+      return NextResponse.redirect(new URL("/scanner", req.url));
+    }
+
+    if (!isScanner && !token?.currentSchoolId && (isDashboard || isSelectYear)) {
       return NextResponse.redirect(new URL("/select-school", req.url));
     }
 
     if (
+      !isScanner &&
       token?.currentSchoolId &&
       !token?.currentSchoolYearId &&
       isDashboard
@@ -33,6 +39,8 @@ export default withAuth(
       authorized: ({ token, req }) => {
         const pathname = req.nextUrl.pathname;
         if (pathname === "/login") return true;
+        // Scanner page has its own login UI for unauthenticated stations.
+        if (pathname.startsWith("/scanner")) return true;
         return !!token;
       },
     },
@@ -45,5 +53,7 @@ export const config = {
     "/select-school",
     "/select-school-year",
     "/login",
+    "/scanner",
+    "/scanner/:path*",
   ],
 };

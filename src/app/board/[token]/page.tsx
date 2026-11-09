@@ -56,6 +56,7 @@ function InfoBoardPageContent() {
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scanningRef = useRef(false);
   const flashMsRef = useRef(DEFAULT_BOARD_APPEARANCE.flashSeconds * 1000);
+  const knownServerEntryIds = useRef<Set<string> | null>(null);
 
   useEffect(() => {
     flashMsRef.current = appearance.flashSeconds * 1000;
@@ -78,28 +79,6 @@ function InfoBoardPageContent() {
       );
       const data = await res.json();
       if (res.ok && data.weather) setWeather(data.weather);
-    } catch {
-      /* optional */
-    }
-  }, [token]);
-
-  const loadRecentEntries = useCallback(async () => {
-    if (!token) return;
-    try {
-      const res = await fetch(
-        `/api/board/${encodeURIComponent(token)}/recent-entries`
-      );
-      const data = await res.json();
-      if (!res.ok || !Array.isArray(data.entries)) return;
-      const serverEntries = data.entries as BoardEntryHistoryItem[];
-      setEntryHistory((prev) => {
-        const locals = prev.filter((e) => e.id.startsWith("local-"));
-        const onServer = new Set(
-          serverEntries.map((e) => e.person.id)
-        );
-        const keptLocals = locals.filter((e) => !onServer.has(e.person.id));
-        return [...keptLocals, ...serverEntries].slice(0, 50);
-      });
     } catch {
       /* optional */
     }
@@ -137,11 +116,46 @@ function InfoBoardPageContent() {
       }
       flashTimer.current = setTimeout(() => {
         setFlash({ kind: "idle" });
-        void loadRecentEntries();
       }, flashMsRef.current);
     },
-    [loadRecentEntries]
+    []
   );
+
+  const loadRecentEntries = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch(
+        `/api/board/${encodeURIComponent(token)}/recent-entries`
+      );
+      const data = await res.json();
+      if (!res.ok || !Array.isArray(data.entries)) return;
+      const serverEntries = data.entries as BoardEntryHistoryItem[];
+
+      const previousIds = knownServerEntryIds.current;
+      const nextIds = new Set(serverEntries.map((e) => e.id));
+      if (previousIds === null) {
+        knownServerEntryIds.current = nextIds;
+      } else {
+        const newest = serverEntries.find((e) => !previousIds.has(e.id));
+        knownServerEntryIds.current = nextIds;
+        if (newest && !scanningRef.current) {
+          applyScanResult(
+            { found: true, student: newest.person },
+            newest.person.studentId
+          );
+        }
+      }
+
+      setEntryHistory((prev) => {
+        const locals = prev.filter((e) => e.id.startsWith("local-"));
+        const onServer = new Set(serverEntries.map((e) => e.person.id));
+        const keptLocals = locals.filter((e) => !onServer.has(e.person.id));
+        return [...keptLocals, ...serverEntries].slice(0, 50);
+      });
+    } catch {
+      /* optional */
+    }
+  }, [token, applyScanResult]);
 
   useEffect(() => {
     if (!token) return;
@@ -163,14 +177,18 @@ function InfoBoardPageContent() {
     loadWeather();
     void loadRecentEntries();
 
+    // Poll recent entries often so remote QR station scans flash quickly.
+    const entriesId = setInterval(() => {
+      void loadRecentEntries();
+    }, 3_000);
     const refreshId = setInterval(() => {
       loadBoard().catch(() => {});
       loadWeather();
-      void loadRecentEntries();
     }, 60_000);
     const weatherId = setInterval(loadWeather, 15 * 60_000);
 
     return () => {
+      clearInterval(entriesId);
       clearInterval(refreshId);
       clearInterval(weatherId);
     };

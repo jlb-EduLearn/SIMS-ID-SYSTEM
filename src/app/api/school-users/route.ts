@@ -8,9 +8,15 @@ import {
   verifyResourceSchool,
 } from "@/lib/api-auth";
 import { schoolUserSchema } from "@/lib/validations";
+import { normalizeScannerLogin } from "@/lib/scanner-auth";
 
 function canManageUsers(role: string) {
   return role === "ADMIN" || role === "SCHOOL_ADMIN";
+}
+
+function resolveUserEmail(role: string, login: string) {
+  if (role === "SCANNER") return normalizeScannerLogin(login);
+  return login.trim().toLowerCase();
 }
 
 export async function GET() {
@@ -59,10 +65,14 @@ export async function POST(req: NextRequest) {
     return apiError("Password is required for new users.");
   }
 
-  const email = data.email.toLowerCase();
+  const email = resolveUserEmail(data.role, data.email);
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
-    return apiError("A user with this email already exists.");
+    return apiError(
+      data.role === "SCANNER"
+        ? "A scanner with this username already exists."
+        : "A user with this email already exists."
+    );
   }
 
   const passwordHash = await bcrypt.hash(data.password, 10);
@@ -127,9 +137,21 @@ export async function PUT(req: NextRequest) {
   }
 
   const data = parsed.data;
+  const email = resolveUserEmail(data.role, data.email);
+  if (email !== existing.email) {
+    const clash = await prisma.user.findUnique({ where: { email } });
+    if (clash && clash.id !== existing.id) {
+      return apiError(
+        data.role === "SCANNER"
+          ? "A scanner with this username already exists."
+          : "A user with this email already exists."
+      );
+    }
+  }
+
   const updateData = {
     name: data.name,
-    email: data.email.toLowerCase(),
+    email,
     role: data.role,
     isActive: data.isActive ?? existing.isActive,
     ...(data.password

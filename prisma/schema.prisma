@@ -12,6 +12,7 @@ enum UserRole {
   SCHOOL_ADMIN
   REGISTRAR
   OPERATOR
+  SCANNER
 }
 
 enum StudentCategory {
