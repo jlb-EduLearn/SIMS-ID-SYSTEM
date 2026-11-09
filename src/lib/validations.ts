@@ -27,7 +27,10 @@ export const schoolSchema = z.object({
 export const schoolLogoSchema = z.object({
   logoUrl: z
     .string()
-    .regex(/^\/uploads\/[\w.-]+$/, "Invalid logo file")
+    .regex(
+      /^(\/uploads\/[\w.-]+|https:\/\/res\.cloudinary\.com\/.+)$/,
+      "Invalid logo file"
+    )
     .nullable(),
 });
 
@@ -193,8 +196,16 @@ export const hardwareConfigSchema = z.object({
   accessControlPort: z.number().int().min(1).max(65535).default(4370),
   accessControlProtocol: z.string().max(50).default("WG5000"),
   printerProfile: z
-    .enum(["ENTRUST_SIGMA_PRS10", "GENERIC_CR80_300DPI"])
-    .default("ENTRUST_SIGMA_PRS10"),
+    .enum([
+      "ENTRUST_SIGMA_PRS10",
+      "MAGICARD_600",
+      "MAGICARD_300",
+      "MAGICARD_ENDURO",
+      "MAGICARD_GENERIC",
+      "GENERIC_CR80_300DPI",
+    ])
+    .default("GENERIC_CR80_300DPI"),
+  detectedPrinterName: z.string().max(255).optional().nullable(),
   faceTerminalEnabled: z.boolean().default(true),
   metalDetectorEnabled: z.boolean().default(false),
   notes: z.string().max(2000).optional().nullable(),

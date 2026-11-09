@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
+import { v2 as cloudinary } from "cloudinary";
 import { requireSchoolContext, apiSuccess, apiError } from "@/lib/api-auth";
 
 const MAX_UPLOAD_MB = 15;
@@ -24,6 +25,66 @@ const ALLOWED_EXTENSIONS = new Set([
   "heic",
   "heif",
 ]);
+
+function cloudinaryConfigured() {
+  return Boolean(
+    process.env.CLOUDINARY_CLOUD_NAME &&
+      process.env.CLOUDINARY_API_KEY &&
+      process.env.CLOUDINARY_API_SECRET
+  );
+}
+
+async function uploadToCloudinary(
+  buffer: Buffer,
+  type: string | null,
+  ext: string
+) {
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+    secure: true,
+  });
+
+  const folder = process.env.CLOUDINARY_FOLDER || "assets/SIMS";
+  const publicId = `${type || "photo"}-${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2)}`;
+
+  const result = await new Promise<{ secure_url: string }>((resolve, reject) => {
+    cloudinary.uploader
+      .upload_stream(
+        {
+          folder,
+          public_id: publicId,
+          resource_type: "image",
+          format: ext === "jpg" ? "jpg" : undefined,
+        },
+        (err, res) => {
+          if (err || !res?.secure_url) {
+            reject(err || new Error("Cloudinary upload failed"));
+            return;
+          }
+          resolve({ secure_url: res.secure_url });
+        }
+      )
+      .end(buffer);
+  });
+
+  return result.secure_url;
+}
+
+async function uploadToLocal(buffer: Buffer, type: string | null, ext: string) {
+  const filename = `${type || "photo"}-${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2)}.${ext}`;
+  const uploadDir = path.join(process.cwd(), "public", "uploads");
+
+  await mkdir(uploadDir, { recursive: true });
+  await writeFile(path.join(uploadDir, filename), buffer);
+
+  return `/uploads/${filename}`;
+}
 
 export async function POST(req: NextRequest) {
   const { error } = await requireSchoolContext();
@@ -54,13 +115,14 @@ export async function POST(req: NextRequest) {
   const bytes = await file.arrayBuffer();
   const buffer = Buffer.from(bytes);
 
-  const filename = `${type || "photo"}-${Date.now()}-${Math.random()
-    .toString(36)
-    .slice(2)}.${ext}`;
-  const uploadDir = path.join(process.cwd(), "public", "uploads");
+  try {
+    const url = cloudinaryConfigured()
+      ? await uploadToCloudinary(buffer, type, ext)
+      : await uploadToLocal(buffer, type, ext);
 
-  await mkdir(uploadDir, { recursive: true });
-  await writeFile(path.join(uploadDir, filename), buffer);
-
-  return apiSuccess({ url: `/uploads/${filename}` });
+    return apiSuccess({ url });
+  } catch (err) {
+    console.error("Upload failed:", err);
+    return apiError("Upload failed. Please try again.");
+  }
 }

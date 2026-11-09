@@ -13,8 +13,14 @@
 | `DATABASE_URL` | `file:./prod.db` |
 | `NEXTAUTH_SECRET` | random secret (Render can generate) |
 | `NEXTAUTH_URL` | your Render URL, e.g. `https://sims-id-system-xxxx.onrender.com` |
+| `CLOUDINARY_CLOUD_NAME` | your Cloudinary cloud name |
+| `CLOUDINARY_API_KEY` | your Cloudinary API key |
+| `CLOUDINARY_API_SECRET` | your Cloudinary API secret |
+| `CLOUDINARY_FOLDER` | `assets/SIMS` |
 
 `start-render.mjs` also falls back to `RENDER_EXTERNAL_URL` if `NEXTAUTH_URL` is unset.
+
+When Cloudinary env vars are set, photo/logo/template uploads go to Cloudinary instead of ephemeral disk.
 
 ## Demo login
 
