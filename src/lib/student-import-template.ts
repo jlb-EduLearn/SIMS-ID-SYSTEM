@@ -142,7 +142,7 @@ export async function spreadsheetFileToImportCsvText(
     }) ?? wb.SheetNames[0];
   const ws = wb.Sheets[sheetName];
   if (!ws) return "";
-  return XLSX.utils.sheet_to_csv(ws, { dateNF: "yyyy-mm-dd", raw: false });
+  return XLSX.utils.sheet_to_csv(ws, { dateNF: "yyyy-mm-dd" });
 }
 
 export function downloadBlobFile(filename: string, blob: Blob): void {
