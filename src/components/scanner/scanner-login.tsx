@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { signIn } from "next-auth/react";
+import Link from "next/link";
+import { getSession, signIn, signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,13 +26,21 @@ export function ScannerLogin({ onSuccess }: { onSuccess: () => void }) {
       redirect: false,
     });
 
-    setLoading(false);
-
     if (result?.error) {
+      setLoading(false);
       setError("Invalid scanner username or password.");
       return;
     }
 
+    const session = await getSession();
+    if (session?.user?.role !== "SCANNER") {
+      await signOut({ redirect: false });
+      setLoading(false);
+      setError("Dashboard accounts use /login. This page is for scanner stations only.");
+      return;
+    }
+
+    setLoading(false);
     onSuccess();
   }
 
@@ -107,6 +116,13 @@ export function ScannerLogin({ onSuccess }: { onSuccess: () => void }) {
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Open Scanner
           </Button>
+
+          <p className="text-center text-xs text-slate-400">
+            Dashboard login is at{" "}
+            <Link href="/login" className="text-sky-300 underline underline-offset-2">
+              /login
+            </Link>
+          </p>
         </div>
       </form>
     </div>

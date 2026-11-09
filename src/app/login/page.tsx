@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { signIn, signOut } from "next-auth/react";
+import { getSession, signIn, signOut } from "next-auth/react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,9 +36,8 @@ export default function LoginPage() {
       redirect: false,
     });
 
-    setLoading(false);
-
     if (result?.error) {
+      setLoading(false);
       toast({
         title: "Login failed",
         description: "Invalid email or password.",
@@ -47,6 +47,7 @@ export default function LoginPage() {
     }
 
     if (result?.ok === false || result?.url?.includes("csrf")) {
+      setLoading(false);
       toast({
         title: "Login blocked (wrong app URL)",
         description:
@@ -56,6 +57,19 @@ export default function LoginPage() {
       return;
     }
 
+    const session = await getSession();
+    if (session?.user?.role === "SCANNER") {
+      await signOut({ redirect: false });
+      setLoading(false);
+      toast({
+        title: "Use the scanner station",
+        description: "Scanner accounts sign in at /scanner, not the dashboard.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setLoading(false);
     router.push("/");
     router.refresh();
   }
@@ -71,7 +85,7 @@ export default function LoginPage() {
           <div>
             <CardTitle className="sr-only">{APP_NAME}</CardTitle>
             <CardDescription className="mt-1">
-              Sign in to manage student IDs across your schools
+              Dashboard login — manage student IDs across your schools
             </CardDescription>
           </div>
         </CardHeader>
@@ -114,6 +128,12 @@ export default function LoginPage() {
           </form>
           <p className="mt-6 text-center text-xs text-muted-foreground">
             Demo: admin@demo.org / password123
+          </p>
+          <p className="mt-3 text-center text-xs text-muted-foreground">
+            QR scanner station?{" "}
+            <Link href="/scanner" className="underline underline-offset-2">
+              Open /scanner
+            </Link>
           </p>
           <Button
             type="button"

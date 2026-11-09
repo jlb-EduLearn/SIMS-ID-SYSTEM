@@ -6,6 +6,7 @@ import { Scanner } from "@yudiel/react-qr-scanner";
 import { Button } from "@/components/ui/button";
 import { Loader2, LogOut, ScanLine, School } from "lucide-react";
 import { displayScannerLogin } from "@/lib/scanner-auth";
+import { SCANNER_POPUP_MS } from "@/lib/scanner-cooldown";
 
 type ScannerSchool = {
   id: string;
@@ -21,18 +22,19 @@ type ScanPerson = {
   fullName: string;
   category?: string | null;
   grade?: string | null;
+  gradeLabel?: string | null;
   section?: string | null;
   photoUrl?: string | null;
   recordType?: string | null;
   allowed?: boolean;
+  isStaff?: boolean;
 };
 
-type LastScan = {
-  found: boolean;
+type PopupState = {
+  kind: "success" | "already" | "miss";
   message: string;
-  code: string;
   student: ScanPerson | null;
-  at: number;
+  code: string;
 };
 
 export function ScannerStation() {
@@ -41,11 +43,12 @@ export function ScannerStation() {
   const [school, setSchool] = useState<ScannerSchool | null>(null);
   const [stationName, setStationName] = useState("");
   const [login, setLogin] = useState("");
-  const [lastScan, setLastScan] = useState<LastScan | null>(null);
+  const [popup, setPopup] = useState<PopupState | null>(null);
   const [busy, setBusy] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const lastCodeRef = useRef<string>("");
   const lastAtRef = useRef(0);
+  const popupTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const loadContext = useCallback(async () => {
     setLoading(true);
@@ -68,48 +71,80 @@ export function ScannerStation() {
     void loadContext();
   }, [loadContext]);
 
-  const postScan = useCallback(async (code: string) => {
-    const trimmed = code.trim();
-    if (!trimmed) return;
-
-    const now = Date.now();
-    if (
-      trimmed === lastCodeRef.current &&
-      now - lastAtRef.current < 2500
-    ) {
-      return;
-    }
-    lastCodeRef.current = trimmed;
-    lastAtRef.current = now;
-
-    setBusy(true);
-    const res = await fetch("/api/scanner/scan", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code: trimmed }),
-    });
-    const data = await res.json().catch(() => ({}));
-    setBusy(false);
-
-    if (!res.ok) {
-      setLastScan({
-        found: false,
-        message: data.error || "Scan failed",
-        code: trimmed,
-        student: null,
-        at: Date.now(),
-      });
-      return;
-    }
-
-    setLastScan({
-      found: Boolean(data.found),
-      message: data.message || (data.found ? "Welcome" : "Not found"),
-      code: trimmed,
-      student: data.student || null,
-      at: Date.now(),
-    });
+  useEffect(() => {
+    return () => {
+      if (popupTimer.current) clearTimeout(popupTimer.current);
+    };
   }, []);
+
+  const showPopup = useCallback((next: PopupState) => {
+    if (popupTimer.current) clearTimeout(popupTimer.current);
+    setPopup(next);
+    popupTimer.current = setTimeout(() => {
+      setPopup(null);
+    }, SCANNER_POPUP_MS);
+  }, []);
+
+  const postScan = useCallback(
+    async (code: string) => {
+      const trimmed = code.trim();
+      if (!trimmed || busy || popup) return;
+
+      const now = Date.now();
+      if (trimmed === lastCodeRef.current && now - lastAtRef.current < 2000) {
+        return;
+      }
+      lastCodeRef.current = trimmed;
+      lastAtRef.current = now;
+
+      setBusy(true);
+      const res = await fetch("/api/scanner/scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: trimmed }),
+      });
+      const data = await res.json().catch(() => ({}));
+      setBusy(false);
+
+      if (!res.ok) {
+        showPopup({
+          kind: "miss",
+          message: data.error || "Scan failed",
+          student: null,
+          code: trimmed,
+        });
+        return;
+      }
+
+      if (data.alreadyScanned) {
+        showPopup({
+          kind: "already",
+          message: data.message || "Already scanned",
+          student: data.student || null,
+          code: trimmed,
+        });
+        return;
+      }
+
+      if (data.found && data.student) {
+        showPopup({
+          kind: "success",
+          message: data.message || "Welcome",
+          student: data.student,
+          code: trimmed,
+        });
+        return;
+      }
+
+      showPopup({
+        kind: "miss",
+        message: data.message || "No matching student or card",
+        student: null,
+        code: trimmed,
+      });
+    },
+    [busy, popup, showPopup]
+  );
 
   if (loading) {
     return (
@@ -141,6 +176,11 @@ export function ScannerStation() {
     );
   }
 
+  const gradeLine =
+    popup?.student?.gradeLabel ||
+    popup?.student?.grade ||
+    (popup?.student?.isStaff ? "Staff" : "");
+
   return (
     <div className="grid min-h-[100dvh] grid-cols-1 lg:grid-cols-2">
       <section className="relative flex flex-col border-b border-white/10 lg:border-b-0 lg:border-r">
@@ -149,7 +189,7 @@ export function ScannerStation() {
             <ScanLine className="h-5 w-5" />
             <div>
               <p className="text-sm font-semibold tracking-wide text-white">
-                QR Scanner
+                QR Scanner Station
               </p>
               <p className="text-xs text-slate-400">
                 {displayScannerLogin(login)} · {stationName}
@@ -180,6 +220,7 @@ export function ScannerStation() {
             sound
             allowMultiple
             scanDelay={1800}
+            paused={Boolean(popup) || busy}
             styles={{
               container: { width: "100%", height: "100%" },
               video: { objectFit: "cover" },
@@ -193,64 +234,26 @@ export function ScannerStation() {
           )}
           {busy && (
             <div className="absolute right-3 top-3 rounded-full bg-black/60 px-3 py-1 text-xs text-sky-200">
-              Sending to info board…
+              Checking scan…
             </div>
           )}
         </div>
 
-        <div className="px-5 pb-5">
-          <div
-            className={`rounded-xl border px-4 py-3 ${
-              lastScan?.found
-                ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-100"
-                : lastScan
-                  ? "border-amber-400/30 bg-amber-500/10 text-amber-100"
-                  : "border-white/10 bg-white/5 text-slate-300"
-            }`}
-          >
-            {!lastScan ? (
-              <p className="text-sm">Point the camera at a student ID QR code.</p>
-            ) : lastScan.found && lastScan.student ? (
-              <div className="flex items-center gap-3">
-                {lastScan.student.photoUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={lastScan.student.photoUrl}
-                    alt=""
-                    className="h-14 w-14 rounded-lg object-cover"
-                  />
-                ) : (
-                  <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-white/10 text-lg font-semibold">
-                    {lastScan.student.fullName.slice(0, 1)}
-                  </div>
-                )}
-                <div className="min-w-0">
-                  <p className="truncate text-base font-semibold text-white">
-                    {lastScan.student.fullName}
-                  </p>
-                  <p className="truncate text-sm opacity-90">
-                    {lastScan.student.studentId}
-                    {lastScan.student.grade ? ` · ${lastScan.student.grade}` : ""}
-                    {lastScan.student.section
-                      ? ` · Sec ${lastScan.student.section}`
-                      : ""}
-                  </p>
-                  <p className="text-xs opacity-80">{lastScan.message} · sent to info board</p>
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm">
-                {lastScan.message}
-                {lastScan.code ? ` (${lastScan.code})` : ""}
-              </p>
-            )}
-          </div>
-        </div>
+        <p className="px-5 pb-5 text-sm text-slate-400">
+          Point the camera at a student ID QR code. Each ID can be accepted once
+          every 5 minutes.
+        </p>
       </section>
 
-      <section className="relative flex flex-col items-center justify-center gap-8 bg-[radial-gradient(circle_at_70%_30%,#1d4ed8_0%,#0b1220_50%)] p-8 text-center">
+      <section className="relative flex flex-col items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_70%_30%,#1d4ed8_0%,#0b1220_50%)] p-8 text-center">
         <div className="absolute inset-0 bg-[linear-gradient(160deg,transparent_40%,rgba(14,165,233,0.12))]" />
-        <div className="relative z-10 flex w-full max-w-lg flex-col items-center gap-6">
+
+        {/* Default logo view */}
+        <div
+          className={`relative z-10 flex w-full max-w-lg flex-col items-center gap-6 transition-all duration-500 ${
+            popup ? "scale-95 opacity-0" : "scale-100 opacity-100"
+          }`}
+        >
           <div className="flex h-20 w-20 items-center justify-center rounded-2xl border border-white/15 bg-white/5 text-sky-200">
             <School className="h-10 w-10" />
           </div>
@@ -283,11 +286,97 @@ export function ScannerStation() {
                 {school.address}
               </p>
             )}
-            <p className="pt-2 text-xs text-slate-400">
-              Successful scans appear on this school&apos;s lobby info board.
-            </p>
           </div>
         </div>
+
+        {/* 5-second popup after scan */}
+        {popup && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/55 p-6 backdrop-blur-sm animate-in fade-in duration-300">
+            <div
+              className={`w-full max-w-md overflow-hidden rounded-3xl border shadow-2xl ${
+                popup.kind === "success"
+                  ? "border-emerald-300/40 bg-white"
+                  : popup.kind === "already"
+                    ? "border-amber-300/50 bg-white"
+                    : "border-rose-300/40 bg-white"
+              }`}
+            >
+              <div
+                className={`px-5 py-3 text-sm font-semibold uppercase tracking-wide ${
+                  popup.kind === "success"
+                    ? "bg-emerald-500 text-white"
+                    : popup.kind === "already"
+                      ? "bg-amber-500 text-white"
+                      : "bg-rose-500 text-white"
+                }`}
+              >
+                {popup.kind === "success"
+                  ? "Scan accepted"
+                  : popup.kind === "already"
+                    ? "Already scanned"
+                    : "Not recognized"}
+              </div>
+
+              <div className="space-y-5 p-6">
+                {school.logoUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={school.logoUrl}
+                    alt=""
+                    className="mx-auto h-14 w-auto object-contain"
+                  />
+                )}
+
+                {popup.student ? (
+                  <>
+                    {popup.student.photoUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={popup.student.photoUrl}
+                        alt={popup.student.fullName}
+                        className="mx-auto h-44 w-44 rounded-2xl object-cover shadow-lg ring-4 ring-slate-100"
+                      />
+                    ) : (
+                      <div className="mx-auto flex h-44 w-44 items-center justify-center rounded-2xl bg-slate-100 text-5xl font-semibold text-slate-500">
+                        {popup.student.fullName.slice(0, 1)}
+                      </div>
+                    )}
+                    <div className="space-y-1 text-slate-900">
+                      <p className="text-2xl font-semibold tracking-tight">
+                        {popup.student.fullName}
+                      </p>
+                      <p className="text-base text-slate-600">
+                        {popup.student.studentId}
+                      </p>
+                      <p className="text-sm text-slate-500">
+                        {[gradeLine, popup.student.section]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </p>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-lg text-slate-700">{popup.message}</p>
+                )}
+
+                <p
+                  className={`text-sm font-medium ${
+                    popup.kind === "success"
+                      ? "text-emerald-700"
+                      : popup.kind === "already"
+                        ? "text-amber-700"
+                        : "text-rose-700"
+                  }`}
+                >
+                  {popup.message}
+                </p>
+                <p className="text-xs text-slate-400">
+                  Returning to school logo in 5 seconds…
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
       </section>
     </div>
   );

@@ -11,8 +11,13 @@ export default withAuth(
     const isSelectYear = pathname === "/select-school-year";
     const isScanner = pathname.startsWith("/scanner");
 
-    if (token?.role === "SCANNER" && (isDashboard || isSelectSchool || isSelectYear)) {
+    if (token?.role === "SCANNER" && (isDashboard || isSelectSchool || isSelectYear || pathname === "/login")) {
       return NextResponse.redirect(new URL("/scanner", req.url));
+    }
+
+    // Dashboard accounts stay on /login — scanner credentials use /scanner only.
+    if (token && token.role !== "SCANNER" && isScanner) {
+      return NextResponse.redirect(new URL("/dashboard", req.url));
     }
 
     if (!isScanner && !token?.currentSchoolId && (isDashboard || isSelectYear)) {
