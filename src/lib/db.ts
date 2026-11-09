@@ -4,7 +4,7 @@ import { PrismaClient } from "@prisma/client";
  * Bump when `prisma/schema.prisma` changes (reminder to run generate + full dev restart).
  * Note: after `prisma generate`, you must restart Node — HMR cannot reload `@prisma/client`.
  */
-const PRISMA_CLIENT_GENERATION = 3;
+const PRISMA_CLIENT_GENERATION = 4;
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;

@@ -2,13 +2,18 @@ services:
   - type: web
     name: sims-id-system
     runtime: node
-    plan: free
+    # Free instances wipe the filesystem on every deploy. Starter + disk keeps SQLite data.
+    plan: starter
     buildCommand: npm install && npx prisma generate && npm run build
     startCommand: node scripts/start-render.mjs
+    disk:
+      name: sims-data
+      mountPath: /var/data
+      sizeGB: 1
     envVars:
       - key: NODE_VERSION
         value: "20.18.0"
       - key: DATABASE_URL
-        value: file:./prod.db
+        value: file:/var/data/prod.db
       - key: NEXTAUTH_SECRET
         generateValue: true

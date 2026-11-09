@@ -56,7 +56,7 @@ function InfoBoardPageContent() {
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scanningRef = useRef(false);
   const flashMsRef = useRef(DEFAULT_BOARD_APPEARANCE.flashSeconds * 1000);
-  const knownServerEntryIds = useRef<Set<string> | null>(null);
+  const lastLiveScanAt = useRef<string | null>(null);
 
   useEffect(() => {
     flashMsRef.current = appearance.flashSeconds * 1000;
@@ -130,22 +130,6 @@ function InfoBoardPageContent() {
       const data = await res.json();
       if (!res.ok || !Array.isArray(data.entries)) return;
       const serverEntries = data.entries as BoardEntryHistoryItem[];
-
-      const previousIds = knownServerEntryIds.current;
-      const nextIds = new Set(serverEntries.map((e) => e.id));
-      if (previousIds === null) {
-        knownServerEntryIds.current = nextIds;
-      } else {
-        const newest = serverEntries.find((e) => !previousIds.has(e.id));
-        knownServerEntryIds.current = nextIds;
-        if (newest && !scanningRef.current) {
-          applyScanResult(
-            { found: true, student: newest.person },
-            newest.person.studentId
-          );
-        }
-      }
-
       setEntryHistory((prev) => {
         const locals = prev.filter((e) => e.id.startsWith("local-"));
         const onServer = new Set(serverEntries.map((e) => e.person.id));
@@ -155,7 +139,39 @@ function InfoBoardPageContent() {
     } catch {
       /* optional */
     }
-  }, [token, applyScanResult]);
+  }, [token]);
+
+  const loadLiveScan = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch(
+        `/api/board/${encodeURIComponent(token)}/live-scan`,
+        { cache: "no-store" }
+      );
+      const data = await res.json();
+      if (!res.ok) return;
+      const at =
+        (typeof data.at === "string" && data.at) ||
+        (typeof data.scan?.at === "string" && data.scan.at) ||
+        null;
+      if (!at || !data.scan?.student) {
+        return;
+      }
+      if (lastLiveScanAt.current === null) {
+        lastLiveScanAt.current = at;
+        return;
+      }
+      if (at === lastLiveScanAt.current || scanningRef.current) return;
+      lastLiveScanAt.current = at;
+      applyScanResult(
+        { found: true, student: data.scan.student as BoardPerson },
+        data.scan.student.studentId || ""
+      );
+      void loadRecentEntries();
+    } catch {
+      /* optional */
+    }
+  }, [token, applyScanResult, loadRecentEntries]);
 
   useEffect(() => {
     if (!token) return;
@@ -176,11 +192,15 @@ function InfoBoardPageContent() {
     );
     loadWeather();
     void loadRecentEntries();
+    void loadLiveScan();
 
-    // Poll recent entries often so remote QR station scans flash quickly.
+    // Poll live scan often so remote QR stations flash on this lobby display.
+    const liveId = setInterval(() => {
+      void loadLiveScan();
+    }, 1_500);
     const entriesId = setInterval(() => {
       void loadRecentEntries();
-    }, 3_000);
+    }, 10_000);
     const refreshId = setInterval(() => {
       loadBoard().catch(() => {});
       loadWeather();
@@ -188,11 +208,12 @@ function InfoBoardPageContent() {
     const weatherId = setInterval(loadWeather, 15 * 60_000);
 
     return () => {
+      clearInterval(liveId);
       clearInterval(entriesId);
       clearInterval(refreshId);
       clearInterval(weatherId);
     };
-  }, [token, loadBoard, loadWeather, loadRecentEntries]);
+  }, [token, loadBoard, loadWeather, loadRecentEntries, loadLiveScan]);
 
   useEffect(() => {
     if (!appearance.showClock && !appearance.showDate) return;

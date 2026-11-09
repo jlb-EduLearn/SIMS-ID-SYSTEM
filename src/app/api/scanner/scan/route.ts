@@ -6,8 +6,8 @@ import {
   formatPrismaClientError,
   requireSchoolContext,
 } from "@/lib/api-auth";
-import { lookupBoardStudent, normalizeScanCode } from "@/lib/board";
-import { recordBoardEntryLog } from "@/lib/board-entry-log";
+import { ensureBoardToken, lookupBoardStudent, normalizeScanCode } from "@/lib/board";
+import { publishBoardScan } from "@/lib/board-live-scan";
 
 function isScannerRole(role: string) {
   return role === "SCANNER";
@@ -27,6 +27,8 @@ export async function POST(req: NextRequest) {
     const code = typeof body?.code === "string" ? body.code : "";
     if (!code.trim()) return apiError("Scan code required", 400);
 
+    await ensureBoardToken(schoolId!);
+
     const yearId =
       schoolYearId ||
       (
@@ -39,15 +41,17 @@ export async function POST(req: NextRequest) {
     const student = await lookupBoardStudent(schoolId!, code);
     const scanKey = normalizeScanCode(code);
 
-    if (yearId) {
-      void recordBoardEntryLog({
-        schoolId: schoolId!,
-        schoolYearId: yearId,
-        found: Boolean(student),
-        scanCode: scanKey || code.trim(),
-        person: student,
-      });
+    if (!yearId) {
+      return apiError("No active school year for this school.", 400);
     }
+
+    await publishBoardScan({
+      schoolId: schoolId!,
+      schoolYearId: yearId,
+      found: Boolean(student),
+      scanCode: scanKey || code.trim(),
+      person: student,
+    });
 
     if (!student) {
       return apiSuccess({

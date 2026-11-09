@@ -1,16 +1,34 @@
 #!/usr/bin/env node
 /**
- * Render free-tier start script:
+ * Render start script:
  * - Uses Render's PORT and RENDER_EXTERNAL_URL
+ * - Ensures SQLite folder exists (persistent disk at /var/data)
  * - Ensures SQLite schema exists
  * - Seeds demo data only when the DB has no users
  */
+import { mkdirSync } from "node:fs";
+import { dirname } from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { PrismaClient } from "@prisma/client";
 
-if (!process.env.DATABASE_URL) {
-  process.env.DATABASE_URL = "file:./prod.db";
+function ensureSqliteDir(databaseUrl) {
+  if (!databaseUrl?.startsWith("file:")) return;
+  let filePath = databaseUrl.slice("file:".length);
+  // Prisma accepts file:/absolute and file:./relative
+  if (filePath.startsWith("//")) filePath = filePath.slice(1);
+  const dir = dirname(filePath);
+  if (dir && dir !== ".") {
+    mkdirSync(dir, { recursive: true });
+    console.log(`==> SQLite directory ready: ${dir}`);
+  }
 }
+
+if (!process.env.DATABASE_URL) {
+  // Prefer persistent disk when present; otherwise local file for demos.
+  process.env.DATABASE_URL = "file:/var/data/prod.db";
+}
+
+ensureSqliteDir(process.env.DATABASE_URL);
 
 if (!process.env.NEXTAUTH_URL && process.env.RENDER_EXTERNAL_URL) {
   process.env.NEXTAUTH_URL = process.env.RENDER_EXTERNAL_URL.replace(/\/$/, "");
@@ -23,6 +41,7 @@ if (!process.env.NEXTAUTH_SECRET) {
   process.env.NEXTAUTH_SECRET = "sims-render-demo-secret-change-me";
 }
 
+console.log(`==> DATABASE_URL=${process.env.DATABASE_URL}`);
 console.log("==> Preparing database...");
 const push = spawnSync("npx", ["prisma", "db", "push", "--skip-generate"], {
   stdio: "inherit",
@@ -37,7 +56,7 @@ const prisma = new PrismaClient();
 try {
   const userCount = await prisma.user.count();
   if (userCount === 0) {
-    console.log("==> Seeding demo data...");
+    console.log("==> Empty database — seeding demo data once...");
     const seed = spawnSync("npx", ["tsx", "prisma/seed.ts"], {
       stdio: "inherit",
       env: process.env,
@@ -47,7 +66,9 @@ try {
       process.exit(seed.status ?? 1);
     }
   } else {
-    console.log(`==> Database already has ${userCount} user(s); skipping seed.`);
+    console.log(
+      `==> Keeping existing data (${userCount} user(s)); skipping seed.`
+    );
   }
 } finally {
   await prisma.$disconnect();

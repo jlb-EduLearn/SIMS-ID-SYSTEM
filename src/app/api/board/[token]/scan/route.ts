@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { apiError, apiSuccess } from "@/lib/api-auth";
 import { lookupBoardStudent, normalizeScanCode, resolveBoardByToken } from "@/lib/board";
-import { recordBoardEntryLog } from "@/lib/board-entry-log";
+import { publishBoardScan } from "@/lib/board-live-scan";
 
 export async function POST(
   req: NextRequest,
@@ -25,7 +25,7 @@ export async function POST(
   const scanKey = normalizeScanCode(code);
 
   if (year) {
-    void recordBoardEntryLog({
+    await publishBoardScan({
       schoolId: board.schoolId,
       schoolYearId: year.id,
       found: Boolean(student),
