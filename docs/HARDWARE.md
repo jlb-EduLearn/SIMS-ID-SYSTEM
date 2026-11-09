@@ -12,13 +12,15 @@ SIMS is designed to work with the campus ID and access stack in your bill of mat
 | IC reader | RDS-20 | Wiegand 26/34; reads encoded CDS-10 cards |
 | Card encoder | FDS-10 | Issue card, then capture number in SIMS |
 | IC card | CDS-10 | CR-80; matches template pixel size |
-| Card printer | PRS10-600 | Print SIMS templates via OS driver |
+| Card printer | PRS10-600, Magicard, others | Print SIMS templates via OS driver |
 | Metal detector | MDS10 | Standalone security (no SIMS link today) |
 
-## Card design & printing (PRS10-600 + CDS-10)
+## Card design & printing (CR-80 printers + CDS-10)
 
 - Use **CR-80 / ID-1** templates: **1011×638 px** (landscape) or **638×1011 px** (portrait) at **300 dpi**.
-- In SIMS: **Templates** → preset orientation → **Print IDs** → system print dialog → select **Entrust Sigma** driver.
+- Supported brands include **Entrust Sigma (PRS10-600)**, **Magicard** (600, 300, Enduro, Pronto, Rio Pro, etc.), and other **300 dpi CR-80** dye-sub / retransfer printers.
+- In SIMS: **Settings → Campus hardware → Scan this computer** to detect installed Windows/macOS printer queues and pick a profile automatically.
+- **Print IDs** → **Print** → system print dialog → choose your card printer driver.
 - Enable duplex in the driver if printing front and back.
 
 ## Encoding cards (FDS-10 + CDS-10)
@@ -39,11 +41,13 @@ SIMS is designed to work with the campus ID and access stack in your bill of mat
 
 Each school gets a public website link for a full-screen **info board**:
 
-1. In SIMS: **Settings → Info board** — set headline, announcement, colors, welcome text; then **Copy link** / **Open board**.
-2. Open that URL on the lobby TV or kiosk PC (Chrome / Edge, full screen).
+1. In SIMS: **Settings → Info board** — set headline, upcoming events, colors, welcome text; then **Copy link** / **Open board**.
+2. Open that URL on the lobby TV or kiosk PC (Chrome / Edge, **full screen**, landscape / 16:9).
 3. Plug a **USB QR scanner** or **RFID reader** that acts as a keyboard (wedge). Scan/tap an ID.
-4. The board flashes **photo + name + grade/section** for that school’s current year.
-5. Reload the TV page after saving portal changes so announcements update.
+4. The board shows **photo + name + grade/section** (or **staff role/department**) for a few seconds (default **5s**, editable in Settings), then returns to the idle screen.
+5. The idle screen can show **coming up events**, **live date & time**, and **weather** (city editable in Settings). The board auto-refreshes settings about every minute.
+6. **Dashboard → Entry Logs** records every board tap/scan (filter by date, school level, section, students vs staff). Export **CSV** or **PDF** with the same filters.
+6. Reload the TV page after saving portal changes if you need an immediate update.
 
 URL shape: `http://YOUR-SERVER/board/<secret-token>`  
 QR codes on printed IDs encode **Student ID**. RFID uses **card UID / Wiegand number** saved on the student Access card tab.
@@ -77,7 +81,7 @@ SIMS runs in the browser, so it **cannot** see every USB port by itself. Use the
 
 **Manual (terminal):** `npm run hardware-agent` and leave it running, then scan in SIMS.
 
-The agent lists **USB devices** and **installed printers** (Windows: PowerShell; Mac: `system_profiler` + `lpstat`). SIMS matches names to your catalog (FDS-10, PRS10-600, etc.).
+The agent lists **USB devices** and **installed printers** (Windows: printer name + driver; Mac: `system_profiler` + `lpstat`). SIMS matches names to your catalog (FDS-10, Entrust Sigma, Magicard, etc.) and sets the **ID card printer** profile.
 
 Optional: in Chrome or Edge, use **Allow USB device** for extra WebUSB devices you approve manually.
 

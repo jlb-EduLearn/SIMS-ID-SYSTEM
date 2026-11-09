@@ -64,6 +64,7 @@ model School {
   sections     GradeSection[]
   templates    IdTemplate[]
   printBatches IdPrintBatch[]
+  boardEntryLogs BoardEntryLog[]
   hardwareConfig SchoolHardwareConfig?
 
   @@unique([organizationId, code])
@@ -84,6 +85,7 @@ model SchoolYear {
   students     Student[]
   sections     GradeSection[]
   printBatches IdPrintBatch[]
+  boardEntryLogs BoardEntryLog[]
 
   @@unique([schoolId, name])
   @@index([schoolId])
@@ -219,6 +221,7 @@ model Student {
   school          School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   schoolYear      SchoolYear        @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
   printLogEntries IdPrintLogEntry[]
+  boardEntryLogs  BoardEntryLog[]
 
   @@unique([schoolId, schoolYearId, studentId])
   @@index([schoolId])
@@ -239,7 +242,9 @@ model SchoolHardwareConfig {
   accessControlHost     String?
   accessControlPort     Int      @default(4370)
   accessControlProtocol String   @default("WG5000")
-  printerProfile        String   @default("ENTRUST_SIGMA_PRS10")
+  printerProfile        String   @default("GENERIC_CR80_300DPI")
+  /** Last OS printer queue name from hardware scan (informational). */
+  detectedPrinterName   String?
   faceTerminalEnabled   Boolean  @default(true)
   metalDetectorEnabled  Boolean  @default(false)
   /** Secret path segment for public entry info board: /board/{boardToken} */
@@ -248,11 +253,20 @@ model SchoolHardwareConfig {
   boardSubtitle         String?
   boardAnnouncement     String?
   boardAnnouncementOn   Boolean  @default(true)
+  /** JSON array of upcoming events for the lobby board */
+  boardUpcomingEvents   String?
+  boardShowEvents       Boolean  @default(true)
   boardWelcomeText      String?
   boardFooterText       String?
   boardAccentColor      String   @default("#38bdf8")
+  /** Lobby board color scheme: dark | light */
+  boardTheme            String   @default("dark")
   boardShowClock        Boolean  @default(true)
-  boardFlashSeconds     Int      @default(7)
+  boardShowDate         Boolean  @default(true)
+  boardShowWeather      Boolean  @default(true)
+  boardWeatherLocation  String?
+  boardTimezone         String?
+  boardFlashSeconds     Int      @default(5)
   notes                 String?
   updatedAt             DateTime @updatedAt
 
@@ -320,4 +334,32 @@ model IdPrintLogEntry {
   @@index([studentId])
   @@index([studentId, createdAt])
   @@map("id_print_log_entries")
+}
+
+/** Lobby info board tap / RFID / QR scan (entry display). */
+model BoardEntryLog {
+  id           String   @id @default(cuid())
+  schoolId     String
+  schoolYearId String
+  studentId    String?
+  personType   String
+  displayId    String?
+  fullName     String?
+  category     String?
+  grade        String?
+  section      String?
+  department   String?
+  found        Boolean  @default(true)
+  scanCode     String?
+  createdAt    DateTime @default(now())
+
+  school     School     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  schoolYear SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+  student    Student?   @relation(fields: [studentId], references: [id], onDelete: SetNull)
+
+  @@index([schoolId, schoolYearId, createdAt])
+  @@index([schoolId, schoolYearId, category])
+  @@index([schoolId, schoolYearId, section])
+  @@index([schoolId, schoolYearId, personType])
+  @@map("board_entry_logs")
 }

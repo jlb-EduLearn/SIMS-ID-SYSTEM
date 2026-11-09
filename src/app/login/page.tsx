@@ -17,6 +17,7 @@ import { toast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 import { APP_NAME } from "@/lib/app-brand";
 import { AppLogo } from "@/components/layout/app-logo";
+import { ThemeSwitcher } from "@/components/theme/theme-switcher";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -60,7 +61,10 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50 p-4">
+    <div className="relative min-h-screen flex items-center justify-center bg-background p-4">
+      <div className="absolute right-4 top-4">
+        <ThemeSwitcher />
+      </div>
       <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-4">
           <AppLogo className="mx-auto w-[220px]" />

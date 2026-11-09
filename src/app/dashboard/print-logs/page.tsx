@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Loader2, Search, ClipboardList, Printer } from "lucide-react";
+import { Loader2, Search, ClipboardList, Printer, Trash2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
 async function readApiJson(res: Response) {
@@ -53,8 +54,15 @@ interface BatchDetail {
   }>;
 }
 
+function canDeletePrintLogs(role: string | undefined) {
+  return role === "ADMIN" || role === "SCHOOL_ADMIN" || role === "REGISTRAR";
+}
+
 export default function PrintLogsPage() {
+  const { data: session } = useSession();
+  const canDelete = canDeletePrintLogs(session?.user?.role);
   const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [summary, setSummary] = useState({
     totalPrintEvents: 0,
@@ -148,6 +156,37 @@ export default function PrintLogsPage() {
     return new Date(iso).toLocaleString();
   }
 
+  async function deleteBatch(batchId: string, label: string) {
+    if (
+      !confirm(
+        `Delete this print session?\n\n${label}\n\nThis removes it from history and updates print counts.`
+      )
+    ) {
+      return;
+    }
+    setDeletingId(batchId);
+    const res = await fetch(`/api/print/logs/${batchId}`, { method: "DELETE" });
+    setDeletingId(null);
+    const { data, parseError } = await readApiJson(res);
+    if (parseError || !res.ok) {
+      toast({
+        title: "Could not delete",
+        description:
+          (typeof data?.error === "string" && data.error) ||
+          parseError ||
+          `Request failed (${res.status})`,
+        variant: "destructive",
+      });
+      return;
+    }
+    toast({ title: "Print session deleted" });
+    if (batchDetail?.id === batchId) {
+      setDetailOpen(false);
+      setBatchDetail(null);
+    }
+    loadLogs();
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -157,8 +196,8 @@ export default function PrintLogsPage() {
         </div>
         <h1 className="text-3xl font-bold tracking-tight">ID Print Logs</h1>
         <p className="text-muted-foreground">
-          Track when IDs were sent to the printer and how many times each student
-          was printed this school year.
+          History is recorded after you use the system print dialog on Print IDs.
+          Generate Preview alone does not create a log.
         </p>
       </div>
 
@@ -175,7 +214,7 @@ export default function PrintLogsPage() {
             Print sessions
           </p>
           <p className="mt-1 text-3xl font-bold">{summary.totalBatches}</p>
-          <p className="text-xs text-muted-foreground">Times Print was clicked</p>
+          <p className="text-xs text-muted-foreground">Completed print sessions</p>
         </div>
         <div className="rounded-xl border bg-white p-4 shadow-sm">
           <p className="text-xs font-medium uppercase text-muted-foreground">
@@ -233,31 +272,57 @@ export default function PrintLogsPage() {
       ) : (
         <div className="space-y-3">
           {batches.map((batch) => (
-            <button
+            <div
               key={batch.id}
-              type="button"
-              onClick={() => openBatch(batch.id)}
-              className="w-full rounded-xl border bg-white p-4 text-left shadow-sm transition hover:border-primary/30 hover:shadow-md"
+              className="flex gap-2 rounded-xl border bg-card p-4 shadow-sm transition hover:border-primary/30 hover:shadow-md"
             >
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <p className="font-semibold">{formatWhen(batch.createdAt)}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {batch.templateName} · {batch.studentCount} ID
-                    {batch.studentCount !== 1 ? "s" : ""} · {batch.printedBy.name}
-                  </p>
+              <button
+                type="button"
+                onClick={() => openBatch(batch.id)}
+                className="min-w-0 flex-1 text-left"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <p className="font-semibold">{formatWhen(batch.createdAt)}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {batch.templateName} · {batch.studentCount} ID
+                      {batch.studentCount !== 1 ? "s" : ""} · {batch.printedBy.name}
+                    </p>
+                  </div>
+                  <Badge>{batch.studentCount} printed</Badge>
                 </div>
-                <Badge>{batch.studentCount} printed</Badge>
-              </div>
-              <p className="mt-2 line-clamp-1 text-xs text-muted-foreground">
-                {batch.entryPreview
-                  .map((e) => `${e.studentName} (${e.studentNumber})`)
-                  .join(", ")}
-                {batch.totalEntries > batch.entryPreview.length
-                  ? ` … +${batch.totalEntries - batch.entryPreview.length} more`
-                  : ""}
-              </p>
-            </button>
+                <p className="mt-2 line-clamp-1 text-xs text-muted-foreground">
+                  {batch.entryPreview
+                    .map((e) => `${e.studentName} (${e.studentNumber})`)
+                    .join(", ")}
+                  {batch.totalEntries > batch.entryPreview.length
+                    ? ` … +${batch.totalEntries - batch.entryPreview.length} more`
+                    : ""}
+                </p>
+              </button>
+              {canDelete && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="shrink-0 text-muted-foreground hover:text-destructive"
+                  title="Delete session"
+                  disabled={deletingId === batch.id}
+                  onClick={() =>
+                    deleteBatch(
+                      batch.id,
+                      `${formatWhen(batch.createdAt)} · ${batch.templateName}`
+                    )
+                  }
+                >
+                  {deletingId === batch.id ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-4 w-4" />
+                  )}
+                </Button>
+              )}
+            </div>
           ))}
         </div>
       )}
@@ -314,6 +379,27 @@ export default function PrintLogsPage() {
                   </li>
                 ))}
               </ul>
+              {canDelete && (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  className="w-full"
+                  disabled={deletingId === batchDetail.id}
+                  onClick={() =>
+                    deleteBatch(
+                      batchDetail.id,
+                      `${formatWhen(batchDetail.createdAt)} · ${batchDetail.templateName}`
+                    )
+                  }
+                >
+                  {deletingId === batchDetail.id ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="mr-2 h-4 w-4" />
+                  )}
+                  Delete this session
+                </Button>
+              )}
             </div>
           ) : null}
         </DialogContent>

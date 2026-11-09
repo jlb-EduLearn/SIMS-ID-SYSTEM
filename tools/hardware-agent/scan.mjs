@@ -69,7 +69,9 @@ async function scanWinUsbAndPrinters() {
 $usb = Get-CimInstance Win32_PnPEntity | Where-Object {
   $_.Present -eq $true -and ($_.PNPClass -eq 'USB' -or $_.Name -match 'USB')
 } | Select-Object -ExpandProperty Name
-$printers = Get-CimInstance Win32_Printer | Select-Object -ExpandProperty Name
+$printers = Get-CimInstance Win32_Printer | ForEach-Object {
+  if ($_.DriverName) { "$($_.Name) ($($_.DriverName))" } else { $_.Name }
+}
 [PSCustomObject]@{ usb = @($usb); printers = @($printers) } | ConvertTo-Json -Compress
 `;
   try {

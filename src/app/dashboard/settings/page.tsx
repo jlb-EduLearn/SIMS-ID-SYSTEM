@@ -14,16 +14,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
-import { useTheme, type Theme } from "@/components/theme-provider";
+import { useTheme } from "@/components/theme-provider";
+import { THEME_OPTIONS } from "@/lib/theme-options";
+import { ThemeSwitcher } from "@/components/theme/theme-switcher";
 import { cn } from "@/lib/utils";
 import {
   IdCard,
   KeyRound,
   Loader2,
-  Monitor,
-  Moon,
   Palette,
-  Sun,
   Trash2,
   Upload,
   UserCircle,
@@ -40,6 +39,7 @@ import {
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { HardwareDetectionPanel } from "@/components/hardware/hardware-detection-panel";
+import type { PrinterProfileId } from "@/lib/hardware/device-catalog";
 import { InfoBoardSettings } from "@/components/board/info-board-settings";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SCHOOL_LOGO_UPDATED_EVENT } from "@/lib/school-events";
@@ -50,12 +50,6 @@ const ROLE_LABELS: Record<string, string> = {
   REGISTRAR: "Registrar",
   OPERATOR: "Operator",
 };
-
-const THEME_OPTIONS: { value: Theme; label: string; icon: typeof Sun }[] = [
-  { value: "light", label: "Light", icon: Sun },
-  { value: "dark", label: "Dark", icon: Moon },
-  { value: "system", label: "System", icon: Monitor },
-];
 
 interface SchoolSettings {
   id: string;
@@ -86,14 +80,16 @@ export default function SettingsPage() {
   const [deviceList, setDeviceList] = useState<
     Array<{ sku: string; name: string; simsIntegration: string }>
   >([]);
+  const [printerProfileOptions, setPrinterProfileOptions] = useState<
+    Record<string, { label: string; notes: string }>
+  >({});
   const [hardwareForm, setHardwareForm] = useState({
     wiegandFormat: "26" as "26" | "34",
     accessControlHost: "",
     accessControlPort: 4370,
     accessControlProtocol: "WG5000",
-    printerProfile: "ENTRUST_SIGMA_PRS10" as
-      | "ENTRUST_SIGMA_PRS10"
-      | "GENERIC_CR80_300DPI",
+    printerProfile: "GENERIC_CR80_300DPI" as PrinterProfileId,
+    detectedPrinterName: "" as string,
     faceTerminalEnabled: true,
     metalDetectorEnabled: false,
     notes: "",
@@ -117,16 +113,19 @@ export default function SettingsPage() {
         if (!data?.config) return;
         setHardwareCanEdit(Boolean(data.canEdit));
         setDeviceList(data.devices || []);
+        setPrinterProfileOptions(data.printerProfiles || {});
         const c = data.config;
+        const validProfiles = Object.keys(data.printerProfiles || {});
+        const profile = validProfiles.includes(c.printerProfile)
+          ? (c.printerProfile as PrinterProfileId)
+          : "GENERIC_CR80_300DPI";
         setHardwareForm({
           wiegandFormat: c.wiegandFormat === "34" ? "34" : "26",
           accessControlHost: c.accessControlHost || "",
           accessControlPort: c.accessControlPort ?? 4370,
           accessControlProtocol: c.accessControlProtocol || "WG5000",
-          printerProfile:
-            c.printerProfile === "GENERIC_CR80_300DPI"
-              ? "GENERIC_CR80_300DPI"
-              : "ENTRUST_SIGMA_PRS10",
+          printerProfile: profile,
+          detectedPrinterName: c.detectedPrinterName || "",
           faceTerminalEnabled: c.faceTerminalEnabled !== false,
           metalDetectorEnabled: Boolean(c.metalDetectorEnabled),
           notes: c.notes || "",
@@ -144,6 +143,7 @@ export default function SettingsPage() {
         body: JSON.stringify({
           ...hardwareForm,
           accessControlHost: hardwareForm.accessControlHost || null,
+          detectedPrinterName: hardwareForm.detectedPrinterName || null,
           notes: hardwareForm.notes || null,
         }),
       });
@@ -283,24 +283,31 @@ export default function SettingsPage() {
               Appearance
             </CardTitle>
             <CardDescription>
-              Choose how the app looks on this device.
+              Semi-dark, light, or follow your device. You can also use the
+              theme button in the top bar.
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-3 gap-3">
+          <CardContent className="space-y-4">
+            <ThemeSwitcher variant="segmented" className="w-full sm:w-auto" />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               {THEME_OPTIONS.map((option) => (
                 <button
                   key={option.value}
                   type="button"
                   onClick={() => setTheme(option.value)}
                   className={cn(
-                    "flex flex-col items-center gap-2 rounded-xl border p-4 text-sm font-medium transition-all hover:border-primary/50",
+                    "flex flex-col items-start gap-1 rounded-xl border p-4 text-left text-sm transition-all hover:border-primary/50",
                     theme === option.value &&
-                      "border-primary bg-primary/10 text-primary ring-1 ring-primary"
+                      "border-primary bg-primary/10 ring-1 ring-primary"
                   )}
                 >
-                  <option.icon className="h-5 w-5" />
-                  {option.label}
+                  <span className="flex items-center gap-2 font-medium">
+                    <option.icon className="h-4 w-4" />
+                    {option.label}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {option.description}
+                  </span>
                 </button>
               ))}
             </div>
@@ -405,9 +412,18 @@ export default function SettingsPage() {
             ) : (
               <>
                 <HardwareDetectionPanel
-                  onMatchedPrinter={(profile) =>
-                    setHardwareForm((f) => ({ ...f, printerProfile: profile }))
-                  }
+                  selectedPrinterName={hardwareForm.detectedPrinterName || null}
+                  onPrinterDetected={({ profile, printerName }) => {
+                    setHardwareForm((f) => ({
+                      ...f,
+                      printerProfile: profile,
+                      detectedPrinterName: printerName,
+                    }));
+                    toast({
+                      title: "Printer detected",
+                      description: `${printerName} — click Save campus hardware below to store it.`,
+                    });
+                  }}
                 />
 
                 <details className="rounded-lg border bg-muted/20 px-3 py-2">
@@ -497,14 +513,28 @@ export default function SettingsPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="ENTRUST_SIGMA_PRS10">
-                          Entrust Sigma PRS10-600
-                        </SelectItem>
-                        <SelectItem value="GENERIC_CR80_300DPI">
-                          Generic CR-80 @ 300 dpi
-                        </SelectItem>
+                        {Object.entries(printerProfileOptions).map(
+                          ([id, meta]) => (
+                            <SelectItem key={id} value={id}>
+                              {meta.label}
+                            </SelectItem>
+                          )
+                        )}
                       </SelectContent>
                     </Select>
+                    {hardwareForm.detectedPrinterName && (
+                      <p className="text-xs text-muted-foreground">
+                        Detected queue:{" "}
+                        <span className="font-medium text-foreground">
+                          {hardwareForm.detectedPrinterName}
+                        </span>
+                      </p>
+                    )}
+                    {printerProfileOptions[hardwareForm.printerProfile]?.notes && (
+                      <p className="text-xs text-muted-foreground">
+                        {printerProfileOptions[hardwareForm.printerProfile].notes}
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -538,7 +568,7 @@ export default function SettingsPage() {
                 </div>
 
                 <div className="rounded-lg border bg-muted/20 p-3 text-sm text-muted-foreground">
-                  Customize announcements and the lobby URL under the{" "}
+                  Customize upcoming events and the lobby URL under the{" "}
                   <span className="inline-flex items-center gap-1 font-medium text-foreground">
                     <Megaphone className="h-3.5 w-3.5" />
                     Info board

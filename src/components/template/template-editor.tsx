@@ -166,7 +166,16 @@ const ADD_GROUPS: { title: string; items: AddItem[] }[] = [
   {
     title: "Other",
     items: [
-      { key: "text", label: "Text", icon: Type, type: "text", width: 260, height: 34, content: "Your text", style: { fontSize: 16 } },
+      {
+        key: "text",
+        label: "Text",
+        icon: Type,
+        type: "text",
+        width: 260,
+        height: 34,
+        content: "{fullName}",
+        style: { fontSize: 16 },
+      },
       { key: "shape", label: "Box / Shape", icon: Square, type: "shape", width: 200, height: 120, style: { backgroundColor: "#e2e8f0" } },
     ],
   },
@@ -209,16 +218,6 @@ function describeElement(element: TemplateElement): string {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), Math.max(min, max));
-}
-
-function readableTextColor(background?: string) {
-  const hex = (background || "#ffffff").replace("#", "");
-  if (hex.length !== 6) return "#0f172a";
-  const r = parseInt(hex.slice(0, 2), 16);
-  const g = parseInt(hex.slice(2, 4), 16);
-  const b = parseInt(hex.slice(4, 6), 16);
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luminance < 0.55 ? "#ffffff" : "#0f172a";
 }
 
 function Segmented<T extends string>({
@@ -497,14 +496,16 @@ export function TemplateEditor({
 
   function addItem(item: AddItem) {
     const isText = item.type === "text" || item.type === "dynamic-field";
+    const defaultTextContent =
+      item.type === "text" ? item.content || "{fullName}" : item.content;
     placeNewElement({
       type: item.type,
       width: item.width,
       height: item.height,
-      fieldKey: item.fieldKey,
-      content: item.content,
+      fieldKey: item.fieldKey ?? (item.type === "dynamic-field" ? "fullName" : undefined),
+      content: defaultTextContent,
       style: isText
-        ? { fontSize: 14, color: readableTextColor(design.backgroundColor), ...item.style }
+        ? { fontSize: 14, ...item.style }
         : { ...item.style },
     });
   }
@@ -515,7 +516,7 @@ export function TemplateEditor({
       fieldKey,
       width: 320,
       height: 34,
-      style: { fontSize: 16, color: readableTextColor(design.backgroundColor) },
+      style: { fontSize: 16 },
     });
   }
 
@@ -914,7 +915,7 @@ export function TemplateEditor({
       </div>
 
       {/* Canvas */}
-      <div className="order-1 min-w-0 rounded-xl border bg-white p-4 shadow-sm md:order-2 md:self-start">
+      <div className="order-1 min-w-0 rounded-xl border bg-card p-4 shadow-sm md:order-2 md:self-start">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <Segmented<Side>
             value={side}
@@ -966,20 +967,22 @@ export function TemplateEditor({
 
         <div
           ref={canvasViewportRef}
-          className="mt-4 flex justify-center overflow-hidden rounded-lg bg-muted/50 p-4"
+          className="id-card-stage mt-4 flex min-h-[240px] justify-center overflow-auto rounded-lg border border-dashed border-border/70 p-6"
         >
           {mode === "preview" ? (
-            <IdCardRenderer
-              design={design}
-              data={sampleData}
-              width={width}
-              height={height}
-              scale={scale}
-              className="shadow-lg"
-            />
+            <div className="inline-block overflow-hidden rounded-[2px] ring-1 ring-foreground/25 shadow-lg">
+              <IdCardRenderer
+                design={design}
+                data={sampleData}
+                width={width}
+                height={height}
+                scale={scale}
+                sampleFallback
+              />
+            </div>
           ) : (
             <div
-              className="relative shrink-0 shadow-lg"
+              className="relative shrink-0 overflow-hidden rounded-[2px] ring-1 ring-foreground/25 shadow-lg"
               style={{ width: width * scale, height: height * scale }}
               onMouseDown={() => setSelectedId(null)}
             >

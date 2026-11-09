@@ -141,7 +141,7 @@ export default function SelectSchoolYearPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50">
+    <div className="min-h-screen bg-background">
       <AuthHeader
         title="Manage school years"
         subtitle={session?.user?.currentSchoolName || undefined}

@@ -20,6 +20,7 @@ const SCENARIOS = {
       photoUrl: null as string | null,
       schoolYearName: "2025-2026",
       allowed: true,
+      isStaff: false,
     },
   },
   staff: {
@@ -35,6 +36,7 @@ const SCENARIOS = {
       photoUrl: null as string | null,
       schoolYearName: "2025-2026",
       allowed: true,
+      isStaff: true,
     },
   },
   inactive: {
@@ -50,6 +52,7 @@ const SCENARIOS = {
       photoUrl: null as string | null,
       schoolYearName: "2025-2026",
       allowed: false,
+      isStaff: false,
     },
   },
   unknown: {

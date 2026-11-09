@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { IdCardRenderer } from "@/components/id-card/id-card-renderer";
+import { IdCardPreviewStage } from "@/components/id-card/id-card-preview-stage";
 import {
   parseTemplateDesign,
   type StudentPrintData,
@@ -63,6 +64,10 @@ export default function PrintPage() {
   const [sectionOptions, setSectionOptions] = useState<string[]>([]);
   const [printing, setPrinting] = useState(false);
   const [loggingPrint, setLoggingPrint] = useState(false);
+  const pendingPrintLogRef = useRef<{
+    templateId: string;
+    studentIds: string[];
+  } | null>(null);
   const [printData, setPrintData] = useState<{
     template: Template;
     students: StudentPrintData[];
@@ -120,6 +125,52 @@ export default function PrintPage() {
 
     return () => clearTimeout(t);
   }, [search, gradeFilter, sectionFilter]);
+
+  const recordPrintLog = useCallback(
+    async (payload: { templateId: string; studentIds: string[] }) => {
+      setLoggingPrint(true);
+      const res = await fetch("/api/print/log", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      setLoggingPrint(false);
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        toast({
+          title: "Could not save print log",
+          description: err?.error || "The print completed but history was not recorded.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const data = await res.json();
+      const counts = (data.printCounts || {}) as Record<string, number>;
+      setStudents((prev) =>
+        prev.map((s) =>
+          counts[s.id] != null ? { ...s, printCount: counts[s.id] } : s
+        )
+      );
+      toast({
+        title: "Print logged",
+        description: `${payload.studentIds.length} ID(s) added to print history.`,
+      });
+    },
+    []
+  );
+
+  useEffect(() => {
+    function onAfterPrint() {
+      const pending = pendingPrintLogRef.current;
+      pendingPrintLogRef.current = null;
+      if (!pending) return;
+      void recordPrintLog(pending);
+    }
+    window.addEventListener("afterprint", onAfterPrint);
+    return () => window.removeEventListener("afterprint", onAfterPrint);
+  }, [recordPrintLog]);
 
   const filtered = students;
   const filteredIds = filtered.map((s) => s.id);
@@ -187,41 +238,13 @@ export default function PrintPage() {
     });
   }, [selectedIds, templateId]);
 
-  async function handlePrint() {
+  function handlePrint() {
     if (!printData) return;
 
-    setLoggingPrint(true);
-    const res = await fetch("/api/print/log", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        templateId: printData.template.id,
-        studentIds: printData.students.map((s) => s.id),
-      }),
-    });
-    setLoggingPrint(false);
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => null);
-      toast({
-        title: "Could not log print",
-        description: err?.error || "Print will continue without logging.",
-        variant: "destructive",
-      });
-    } else {
-      const data = await res.json();
-      const counts = (data.printCounts || {}) as Record<string, number>;
-      setStudents((prev) =>
-        prev.map((s) =>
-          counts[s.id] != null ? { ...s, printCount: counts[s.id] } : s
-        )
-      );
-      toast({
-        title: "Print logged",
-        description: `${printData.students.length} ID(s) recorded in print history.`,
-      });
-    }
-
+    pendingPrintLogRef.current = {
+      templateId: printData.template.id,
+      studentIds: printData.students.map((s) => s.id),
+    };
     window.print();
   }
 
@@ -232,8 +255,9 @@ export default function PrintPage() {
       <div className="no-print">
         <h1 className="text-3xl font-bold tracking-tight">Print IDs</h1>
         <p className="text-muted-foreground">
-          Select students and a template, then generate print-ready IDs. Clicking{" "}
-          <strong>Print</strong> saves a log entry (see{" "}
+          Select students and a template, then generate a preview.{" "}
+          <strong>Generate Preview</strong> does not create a log. A log is saved
+          only after you finish the system print dialog (see{" "}
           <Link href="/dashboard/print-logs" className="text-primary underline">
             Print Logs
           </Link>
@@ -241,13 +265,13 @@ export default function PrintPage() {
         </p>
         <p className="mt-2 rounded-lg border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
           <span className="font-medium text-foreground">Campus hardware:</span>{" "}
-          CR-80 templates (1011×638 px @ 300 dpi) print on{" "}
-          <span className="font-medium">Entrust Sigma PRS10-600</span> via your
-          system print dialog. Encode cards in{" "}
+          CR-80 templates (1011×638 px @ 300 dpi) print through your{" "}
+          <span className="font-medium">system print dialog</span> (Entrust Sigma,
+          Magicard, Evolis, Fargo, etc.). Scan printers in{" "}
           <Link href="/dashboard/settings" className="text-primary underline">
             Settings → Campus hardware
           </Link>
-          .
+          . Card encoding is in the student Access card tab.
         </p>
       </div>
 
@@ -411,7 +435,7 @@ export default function PrintPage() {
                 ) : (
                   <Printer className="mr-2 h-4 w-4" />
                 )}
-                Print & log
+                Print
               </Button>
             )}
           </div>
@@ -434,26 +458,30 @@ export default function PrintPage() {
                   <p className="no-print mb-1 text-xs text-muted-foreground">
                     Front
                   </p>
-                  <IdCardRenderer
-                    design={printData.frontDesign}
-                    data={student}
-                    width={printData.template.width}
-                    height={printData.template.height}
-                    scale={scale}
-                  />
+                  <IdCardPreviewStage>
+                    <IdCardRenderer
+                      design={printData.frontDesign}
+                      data={student}
+                      width={printData.template.width}
+                      height={printData.template.height}
+                      scale={scale}
+                    />
+                  </IdCardPreviewStage>
                 </div>
                 {printData.backDesign && (
                   <div>
                     <p className="no-print mb-1 text-xs text-muted-foreground">
                       Back
                     </p>
-                    <IdCardRenderer
-                      design={printData.backDesign}
-                      data={student}
-                      width={printData.template.width}
-                      height={printData.template.height}
-                      scale={scale}
-                    />
+                    <IdCardPreviewStage>
+                      <IdCardRenderer
+                        design={printData.backDesign}
+                        data={student}
+                        width={printData.template.width}
+                        height={printData.template.height}
+                        scale={scale}
+                      />
+                    </IdCardPreviewStage>
                   </div>
                 )}
               </div>

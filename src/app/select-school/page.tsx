@@ -152,7 +152,7 @@ export default function SelectSchoolPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+    <div className="min-h-screen bg-background">
       <AuthHeader title="Select a School" subtitle="Choose your school to continue" />
       <div className="mx-auto max-w-4xl px-4 py-12">
         <div className="mb-8 text-center">

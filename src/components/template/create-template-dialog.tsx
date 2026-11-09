@@ -21,7 +21,8 @@ import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { Check, Loader2 } from "lucide-react";
 
-const THUMBNAIL_BOX = 150;
+const THUMBNAIL_MAX = 112;
+const PRESET_CARD_WIDTH = 136;
 
 export function CreateTemplateDialog({
   open,
@@ -53,7 +54,7 @@ export function CreateTemplateDialog({
           preset,
           dims,
           front: preset.front(accent),
-          scale: THUMBNAIL_BOX / Math.max(dims.width, dims.height),
+          scale: THUMBNAIL_MAX / Math.max(dims.width, dims.height),
         };
       }),
     [accent]
@@ -120,47 +121,58 @@ export function CreateTemplateDialog({
 
           <div className="space-y-2">
             <Label>2. Starting layout</Label>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-              {previews.map(({ preset, dims, front, scale }) => {
-                const active = preset.id === presetId;
-                return (
-                  <button
-                    key={preset.id}
-                    type="button"
-                    onClick={() => setPresetId(preset.id)}
-                    className={cn(
-                      "relative flex flex-col items-center gap-2 rounded-xl border p-2 text-left transition-all hover:border-primary/50",
-                      active && "border-primary ring-2 ring-primary"
-                    )}
-                  >
-                    {active && (
-                      <span className="absolute right-1.5 top-1.5 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                        <Check className="h-3 w-3" />
-                      </span>
-                    )}
-                    <div
-                      className="flex items-center justify-center rounded-md bg-muted/60"
-                      style={{ width: THUMBNAIL_BOX + 8, height: THUMBNAIL_BOX + 8 }}
+            <div className="flex flex-wrap justify-center gap-3">
+                {previews.map(({ preset, dims, front, scale }) => {
+                  const active = preset.id === presetId;
+                  const thumbW = Math.round(dims.width * scale);
+                  const thumbH = Math.round(dims.height * scale);
+                  return (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => setPresetId(preset.id)}
+                      style={{ width: PRESET_CARD_WIDTH }}
+                      className={cn(
+                        "relative flex shrink-0 flex-col items-center gap-2 rounded-xl border p-2 text-left transition-all hover:border-primary/50",
+                        active && "border-primary ring-2 ring-primary"
+                      )}
                     >
-                      <div className="pointer-events-none overflow-hidden rounded border shadow-sm">
-                        <IdCardRenderer
-                          design={front}
-                          data={sampleData}
-                          width={dims.width}
-                          height={dims.height}
-                          scale={scale}
-                        />
+                      {active && (
+                        <span className="absolute right-1.5 top-1.5 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                          <Check className="h-3 w-3" />
+                        </span>
+                      )}
+                      <div
+                        className="flex items-center justify-center overflow-hidden rounded-md bg-muted/60 p-1"
+                        style={{
+                          width: THUMBNAIL_MAX + 8,
+                          height: THUMBNAIL_MAX + 8,
+                        }}
+                      >
+                        <div
+                          className="pointer-events-none shrink-0 overflow-hidden rounded border shadow-sm"
+                          style={{ width: thumbW, height: thumbH }}
+                        >
+                          <IdCardRenderer
+                            design={front}
+                            data={sampleData}
+                            width={dims.width}
+                            height={dims.height}
+                            scale={scale}
+                          />
+                        </div>
                       </div>
-                    </div>
-                    <div className="w-full">
-                      <p className="text-xs font-semibold">{preset.name}</p>
-                      <p className="text-[11px] leading-tight text-muted-foreground">
-                        {preset.description}
-                      </p>
-                    </div>
-                  </button>
-                );
-              })}
+                      <div className="w-full min-w-0">
+                        <p className="truncate text-xs font-semibold">
+                          {preset.name}
+                        </p>
+                        <p className="line-clamp-2 text-[11px] leading-tight text-muted-foreground">
+                          {preset.description}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
             </div>
           </div>
 

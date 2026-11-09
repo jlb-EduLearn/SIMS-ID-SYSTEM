@@ -43,6 +43,30 @@ export const SIMS_HARDWARE_DEVICES = [
     simsIntegration: "Print from browser to Sigma driver; use SIMS Print IDs layout.",
   },
   {
+    sku: "Magicard-600",
+    name: "Magicard 600 (dual-sided)",
+    role: "300 dpi dye-sub, CR-80",
+    simsIntegration: "Auto-detected from Windows/macOS printer list; print via system dialog.",
+  },
+  {
+    sku: "Magicard-300",
+    name: "Magicard 300",
+    role: "300 dpi dye-sub, CR-80",
+    simsIntegration: "Auto-detected from installed driver; same SIMS template size.",
+  },
+  {
+    sku: "Magicard-Enduro",
+    name: "Magicard Enduro / Enduro+",
+    role: "Retransfer CR-80",
+    simsIntegration: "Matched by name during hardware scan.",
+  },
+  {
+    sku: "Magicard",
+    name: "Magicard ID card printer (other models)",
+    role: "Pronto, Rio Pro, Ultima, etc.",
+    simsIntegration: "Any Magicard with CR-80 driver — use Generic or Magicard profile.",
+  },
+  {
     sku: "MDS10",
     name: "Walk-through metal detector",
     role: "Security screening arch",
@@ -50,22 +74,52 @@ export const SIMS_HARDWARE_DEVICES = [
   },
 ] as const;
 
-export type PrinterProfileId = "ENTRUST_SIGMA_PRS10" | "GENERIC_CR80_300DPI";
+export type PrinterProfileId =
+  | "ENTRUST_SIGMA_PRS10"
+  | "MAGICARD_600"
+  | "MAGICARD_300"
+  | "MAGICARD_ENDURO"
+  | "MAGICARD_GENERIC"
+  | "GENERIC_CR80_300DPI";
 
 export const PRINTER_PROFILES: Record<
   PrinterProfileId,
   { label: string; dpi: number; cardSize: string; notes: string }
 > = {
   ENTRUST_SIGMA_PRS10: {
-    label: "Entrust Sigma PRS10-600 (PRS10-600)",
+    label: "Entrust Sigma PRS10-600 (Entrust / Datacard)",
     dpi: 300,
     cardSize: "CR-80 / ID-1 (85.6 × 53.98 mm)",
     notes: "USB or Ethernet duplex; print SIMS templates at 1011×638 px (landscape).",
   },
+  MAGICARD_600: {
+    label: "Magicard 600 / 600 Duo",
+    dpi: 300,
+    cardSize: "CR-80 / ID-1",
+    notes: "Select the Magicard queue in the system print dialog after Print IDs.",
+  },
+  MAGICARD_300: {
+    label: "Magicard 300",
+    dpi: 300,
+    cardSize: "CR-80 / ID-1",
+    notes: "Same template pixel size as other CR-80 printers.",
+  },
+  MAGICARD_ENDURO: {
+    label: "Magicard Enduro / Enduro+",
+    dpi: 300,
+    cardSize: "CR-80 / ID-1",
+    notes: "Retransfer; enable duplex in driver if printing front and back.",
+  },
+  MAGICARD_GENERIC: {
+    label: "Magicard (other model)",
+    dpi: 300,
+    cardSize: "CR-80 / ID-1",
+    notes: "Pronto, Rio Pro, Ultima, etc. — detected by name from your PC.",
+  },
   GENERIC_CR80_300DPI: {
-    label: "Generic CR-80 @ 300 dpi",
+    label: "Other CR-80 @ 300 dpi",
     dpi: 300,
     cardSize: "CR-80",
-    notes: "Any dye-sub printer accepting ID-1 card stock.",
+    notes: "Evolis, Fargo, Zebra, or any dye-sub / retransfer ID printer.",
   },
 };

@@ -1,7 +1,40 @@
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+
+/** Turn Prisma / DB failures into actionable messages for API clients. */
+export function formatPrismaClientError(error: unknown): string {
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (error.code === "P2022") {
+      return "Database schema is out of date. On the server run: npx prisma db push && npx prisma generate, then restart the app.";
+    }
+    if (error.code === "P2025") {
+      return "Hardware settings record not found for this school. Try saving again.";
+    }
+    if (error.code === "P2021") {
+      return "Database schema is out of date. Run: npx prisma db push && npx prisma generate, then restart the app.";
+    }
+  }
+  if (error instanceof Error) {
+    if (
+      /no such column|Unknown column|does not exist in the current database|no such table/i.test(
+        error.message
+      )
+    ) {
+      return "Database schema is out of date. Run: npx prisma db push && npx prisma generate, then restart the app.";
+    }
+    if (/reading 'count'|boardEntryLog/i.test(error.message)) {
+      return "Entry logs are not ready. Run: npx prisma db push && npx prisma generate, then restart the app (npm run dev:clean).";
+    }
+    if (/Unknown argument `boardTheme`/i.test(error.message)) {
+      return "The dev server is still using an old Prisma client. Stop the app completely, then run: npx prisma db push && npx prisma generate && npm run dev:clean";
+    }
+    return error.message;
+  }
+  return "An unexpected database error occurred.";
+}
 
 export async function getSession() {
   return getServerSession(authOptions);

@@ -2,13 +2,17 @@
 
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
-import { expandTemplateTextPlaceholders } from "@/lib/template-text-content";
+import {
+  expandTemplateTextPlaceholders,
+  parseTemplateTextContent,
+} from "@/lib/template-text-content";
 import {
   type TemplateDesign,
   type TemplateElement,
   type StudentPrintData,
   resolveDynamicField,
   DYNAMIC_FIELD_LABELS,
+  type DynamicFieldKey,
 } from "@/types/template";
 
 interface IdCardRendererProps {
@@ -18,31 +22,60 @@ interface IdCardRendererProps {
   height: number;
   scale?: number;
   className?: string;
+  /** Show sample labels/text for empty layers (template editor). */
+  sampleFallback?: boolean;
+}
+
+function sampleFieldValue(
+  fieldKey: DynamicFieldKey,
+  data: StudentPrintData
+): string {
+  const resolved = resolveDynamicField(fieldKey, data).trim();
+  if (resolved) return resolved;
+  return DYNAMIC_FIELD_LABELS[fieldKey] ?? fieldKey;
 }
 
 function resolveTextContent(
   element: TemplateElement,
-  data: StudentPrintData
+  data: StudentPrintData,
+  sampleFallback = false
 ): string {
   if (element.type === "dynamic-field" && element.fieldKey) {
-    return resolveDynamicField(element.fieldKey, data);
+    const value = resolveDynamicField(element.fieldKey, data);
+    if (value.trim()) return value;
+    return sampleFallback
+      ? sampleFieldValue(element.fieldKey, data)
+      : "";
   }
+
+  let text = "";
   if (element.content) {
-    return expandTemplateTextPlaceholders(element.content, (key) =>
+    text = expandTemplateTextPlaceholders(element.content, (key) =>
       resolveDynamicField(key, data)
     );
   }
-  return "";
+  if (text.trim()) return text;
+  if (!sampleFallback) return "";
+
+  const parsed = parseTemplateTextContent(element.content);
+  if (parsed.fieldKey) {
+    const value = sampleFieldValue(parsed.fieldKey, data);
+    return parsed.label ? `${parsed.label}${value}` : value;
+  }
+  if (parsed.customText.trim()) return parsed.customText;
+  return "Sample Text";
 }
 
 function ElementRenderer({
   element,
   data,
   inline = false,
+  sampleFallback = false,
 }: {
   element: TemplateElement;
   data: StudentPrintData;
   inline?: boolean;
+  sampleFallback?: boolean;
 }) {
   const [qrDataUrl, setQrDataUrl] = useState<string>("");
   const style = element.style || {};
@@ -70,7 +103,7 @@ function ElementRenderer({
     fontWeight: style.fontWeight as React.CSSProperties["fontWeight"],
     fontStyle: style.fontStyle as React.CSSProperties["fontStyle"],
     textAlign: style.textAlign,
-    color: style.color,
+    color: style.color ?? "#0f172a",
     backgroundColor: style.backgroundColor,
     borderWidth: style.borderWidth,
     borderColor: style.borderColor,
@@ -231,7 +264,7 @@ function ElementRenderer({
     case "image":
       return (
         <div style={baseStyle}>
-          {element.imageUrl && (
+          {element.imageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={element.imageUrl}
@@ -242,6 +275,21 @@ function ElementRenderer({
                 objectFit: style.objectFit || "contain",
               }}
             />
+          ) : (
+            <div
+              style={{
+                width: "100%",
+                height: "100%",
+                backgroundColor: "#f1f5f9",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 11,
+                color: "#64748b",
+              }}
+            >
+              Image
+            </div>
           )}
         </div>
       );
@@ -251,14 +299,27 @@ function ElementRenderer({
 
     case "dynamic-field":
     case "text":
-    default:
+    default: {
+      const displayText = resolveTextContent(element, data, sampleFallback);
+      const editHint = sampleFallback
+        ? ({
+            textShadow:
+              "0 0 1px rgba(255,255,255,0.9), 0 1px 2px rgba(0,0,0,0.35)",
+          } satisfies React.CSSProperties)
+        : {};
       return (
-        <div style={{ ...baseStyle, lineHeight: 1.2, padding: "2px 4px" }}>
-          {element.type === "dynamic-field" && element.fieldKey
-            ? resolveDynamicField(element.fieldKey, data)
-            : resolveTextContent(element, data)}
+        <div
+          style={{
+            ...baseStyle,
+            ...editHint,
+            lineHeight: 1.2,
+            padding: "2px 4px",
+          }}
+        >
+          {displayText}
         </div>
       );
+    }
   }
 }
 
@@ -269,7 +330,14 @@ export function TemplateElementView({
   element: TemplateElement;
   data: StudentPrintData;
 }) {
-  return <ElementRenderer element={element} data={data} inline />;
+  return (
+    <ElementRenderer
+      element={element}
+      data={data}
+      inline
+      sampleFallback
+    />
+  );
 }
 
 export function IdCardRenderer({
@@ -279,6 +347,7 @@ export function IdCardRenderer({
   height,
   scale = 1,
   className,
+  sampleFallback = false,
 }: IdCardRendererProps) {
   const sortedElements = [...design.elements].sort(
     (a, b) => a.zIndex - b.zIndex
@@ -311,7 +380,12 @@ export function IdCardRenderer({
         }}
       >
         {sortedElements.map((el) => (
-          <ElementRenderer key={el.id} element={el} data={data} />
+          <ElementRenderer
+            key={el.id}
+            element={el}
+            data={data}
+            sampleFallback={sampleFallback}
+          />
         ))}
       </div>
     </div>

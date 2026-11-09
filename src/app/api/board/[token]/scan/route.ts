@@ -1,6 +1,8 @@
 import { NextRequest } from "next/server";
+import { prisma } from "@/lib/db";
 import { apiError, apiSuccess } from "@/lib/api-auth";
-import { lookupBoardStudent, resolveBoardByToken } from "@/lib/board";
+import { lookupBoardStudent, normalizeScanCode, resolveBoardByToken } from "@/lib/board";
+import { recordBoardEntryLog } from "@/lib/board-entry-log";
 
 export async function POST(
   req: NextRequest,
@@ -14,7 +16,24 @@ export async function POST(
   const code = typeof body?.code === "string" ? body.code : "";
   if (!code.trim()) return apiError("Scan code required", 400);
 
+  const year = await prisma.schoolYear.findFirst({
+    where: { schoolId: board.schoolId, isActive: true, isCurrent: true },
+    select: { id: true },
+  });
+
   const student = await lookupBoardStudent(board.schoolId, code);
+  const scanKey = normalizeScanCode(code);
+
+  if (year) {
+    void recordBoardEntryLog({
+      schoolId: board.schoolId,
+      schoolYearId: year.id,
+      found: Boolean(student),
+      scanCode: scanKey || code.trim(),
+      person: student,
+    });
+  }
+
   if (!student) {
     return apiSuccess({
       found: false,

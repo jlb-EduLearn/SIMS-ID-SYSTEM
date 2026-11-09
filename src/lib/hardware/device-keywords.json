@@ -4,8 +4,28 @@
     "keywords": ["fds-10", "fds10", "card issuer", "card encoder", "rfid writer", "ic writer", "desktop usb"]
   },
   {
+    "sku": "Magicard-600",
+    "keywords": ["magicard 600", "mc600", "600 duo", "magicard-600"]
+  },
+  {
+    "sku": "Magicard-300",
+    "keywords": ["magicard 300", "mc300", "magicard-300"]
+  },
+  {
+    "sku": "Magicard-Enduro",
+    "keywords": ["enduro+", "enduro", "magicard enduro"]
+  },
+  {
+    "sku": "Magicard",
+    "keywords": ["magicard", "pronto", "rio pro", "ultima", "magicard printer"]
+  },
+  {
     "sku": "PRS10-600",
-    "keywords": ["prs10", "sigma", "entrust", "datacard", "direct-to-card", "dice", "dsc", "id printer", "card printer"]
+    "keywords": ["prs10", "sigma", "entrust", "datacard", "direct-to-card", "dice", "dsc"]
+  },
+  {
+    "sku": "PRS10-600",
+    "keywords": ["id printer", "card printer"]
   },
   {
     "sku": "RDS-20",

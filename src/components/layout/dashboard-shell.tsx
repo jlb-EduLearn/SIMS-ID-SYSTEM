@@ -12,6 +12,7 @@ import {
   Palette,
   Printer,
   ClipboardList,
+  ScanLine,
   UserCog,
   Building2,
   Calendar,
@@ -25,6 +26,7 @@ import { useEffect, useState } from "react";
 import { APP_NAME } from "@/lib/app-brand";
 import { AppLogo } from "@/components/layout/app-logo";
 import { SCHOOL_LOGO_UPDATED_EVENT } from "@/lib/school-events";
+import { ThemeSwitcher } from "@/components/theme/theme-switcher";
 
 const baseNavItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -32,6 +34,7 @@ const baseNavItems = [
   { href: "/dashboard/templates", label: "Templates", icon: Palette },
   { href: "/dashboard/print", label: "Print IDs", icon: Printer },
   { href: "/dashboard/print-logs", label: "Print Logs", icon: ClipboardList },
+  { href: "/dashboard/entry-logs", label: "Entry Logs", icon: ScanLine },
   {
     href: "/dashboard/users",
     label: "School Users",
@@ -135,9 +138,9 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50/80">
+    <div className="flex h-[100dvh] flex-col overflow-hidden bg-background">
       {/* Always-visible top bar */}
-      <header className="sticky top-0 z-50 border-b bg-white shadow-sm">
+      <header className="z-50 shrink-0 border-b bg-card/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/80">
         <div className="flex h-14 items-center gap-2 px-3 sm:gap-3 sm:px-4">
           <Button
             variant="ghost"
@@ -176,6 +179,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             </Link>
           )}
 
+          <ThemeSwitcher />
+
           <Button
             variant="ghost"
             size="sm"
@@ -188,10 +193,10 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      <div className="flex">
+      <div className="flex min-h-0 flex-1">
         <aside
           className={cn(
-            "fixed inset-y-0 left-0 z-40 flex w-72 transform flex-col border-r bg-white pt-14 transition-transform lg:static lg:translate-x-0 lg:pt-0",
+            "fixed inset-y-0 left-0 z-40 flex w-72 shrink-0 transform flex-col border-r bg-card pt-14 transition-transform lg:relative lg:z-auto lg:h-full lg:translate-x-0 lg:pt-0",
             mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
           )}
         >
@@ -201,7 +206,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="space-y-3 border-b p-4">
-            <div className="rounded-xl border bg-gradient-to-br from-slate-50 to-white p-3 shadow-sm">
+            <div className="rounded-xl border bg-muted/40 p-3 shadow-sm">
               <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
                 <Building2 className="h-3.5 w-3.5" />
                 School
@@ -231,7 +236,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
               )}
             </div>
 
-            <div className="rounded-xl border bg-gradient-to-br from-indigo-50/50 to-white p-3 shadow-sm">
+            <div className="rounded-xl border border-primary/15 bg-primary/5 p-3 shadow-sm">
               <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
                 <Calendar className="h-3.5 w-3.5" />
                 School Year
@@ -254,7 +259,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
 
-          <nav className="flex-1 space-y-1 p-4">
+          <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto p-4">
             {navItems.map((item) => {
               const active =
                 pathname === item.href ||
@@ -269,7 +274,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                     "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all",
                     active
                       ? "bg-primary text-primary-foreground shadow-sm"
-                      : "text-muted-foreground hover:bg-slate-100 hover:text-foreground"
+                      : "text-muted-foreground hover:bg-accent hover:text-foreground"
                   )}
                 >
                   <item.icon className="h-4 w-4" />
@@ -303,9 +308,9 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           />
         )}
 
-        <main className="flex-1 overflow-auto">
+        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto">
           {session?.user?.currentSchoolYearId ? (
-            <div className="border-b bg-indigo-50/90 px-4 py-2 text-center text-sm text-muted-foreground">
+            <div className="border-b bg-primary/10 px-4 py-2 text-center text-sm text-muted-foreground">
               Working in{" "}
               <span className="font-semibold text-foreground">
                 {session.user.currentSchoolYearName}
