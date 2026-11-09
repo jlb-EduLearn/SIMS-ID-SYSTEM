@@ -112,7 +112,12 @@ export function parseBoardUpcomingEvents(
 }
 
 export function serializeBoardUpcomingEvents(
-  events: BoardUpcomingEvent[]
+  events: Array<{
+    title: string;
+    eventDate: string;
+    eventTime?: string | null;
+    location?: string | null;
+  }>
 ): string {
   const cleaned = events
     .map((e) => ({
