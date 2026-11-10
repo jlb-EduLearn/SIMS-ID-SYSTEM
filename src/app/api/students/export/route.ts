@@ -30,16 +30,31 @@ export async function GET(req: NextRequest) {
     ...(search
       ? {
           OR: [
-            { firstName: { contains: search, mode: "insensitive" } },
-            { lastName: { contains: search, mode: "insensitive" } },
-            { studentId: { contains: search, mode: "insensitive" } },
-            { email: { contains: search, mode: "insensitive" } },
-            { course: { contains: search, mode: "insensitive" } },
-            { department: { contains: search, mode: "insensitive" } },
-            { position: { contains: search, mode: "insensitive" } },
-            { emergencyFirstName: { contains: search, mode: "insensitive" } },
-            { emergencyLastName: { contains: search, mode: "insensitive" } },
-            { emergencyPhone: { contains: search, mode: "insensitive" } },
+            { firstName: { contains: search, mode: "insensitive" as const } },
+            { lastName: { contains: search, mode: "insensitive" as const } },
+            { studentId: { contains: search, mode: "insensitive" as const } },
+            { email: { contains: search, mode: "insensitive" as const } },
+            { course: { contains: search, mode: "insensitive" as const } },
+            { department: { contains: search, mode: "insensitive" as const } },
+            { position: { contains: search, mode: "insensitive" as const } },
+            {
+              emergencyFirstName: {
+                contains: search,
+                mode: "insensitive" as const,
+              },
+            },
+            {
+              emergencyLastName: {
+                contains: search,
+                mode: "insensitive" as const,
+              },
+            },
+            {
+              emergencyPhone: {
+                contains: search,
+                mode: "insensitive" as const,
+              },
+            },
           ],
         }
       : {}),

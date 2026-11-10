@@ -61,15 +61,32 @@ export async function GET(req: NextRequest) {
     ...(search
       ? {
           OR: [
-            { templateName: { contains: search, mode: "insensitive" } },
-            { printedBy: { name: { contains: search, mode: "insensitive" } } },
+            {
+              templateName: {
+                contains: search,
+                mode: "insensitive" as const,
+              },
+            },
+            {
+              printedBy: {
+                name: { contains: search, mode: "insensitive" as const },
+              },
+            },
             {
               entries: {
                 some: {
                   OR: [
-                    { studentName: { contains: search, mode: "insensitive" } },
                     {
-                      studentNumber: { contains: search, mode: "insensitive" },
+                      studentName: {
+                        contains: search,
+                        mode: "insensitive" as const,
+                      },
+                    },
+                    {
+                      studentNumber: {
+                        contains: search,
+                        mode: "insensitive" as const,
+                      },
                     },
                   ],
                 },
