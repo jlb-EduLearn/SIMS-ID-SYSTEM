@@ -3,16 +3,17 @@ import {
   apiError,
   apiSuccess,
   formatPrismaClientError,
-  requireSchoolContext,
 } from "@/lib/api-auth";
 import { ensureBoardToken } from "@/lib/board";
 import {
   processScannerScan,
   resolveScannerYearId,
 } from "@/lib/scanner-process";
+import { requireScannerApi } from "@/lib/scanner-api-auth";
+import { scannerOptions, withScannerCors } from "@/lib/scanner-cors";
 
-function isScannerRole(role: string) {
-  return role === "SCANNER";
+export function OPTIONS(req: NextRequest) {
+  return scannerOptions(req);
 }
 
 type IncomingScan = {
@@ -24,25 +25,32 @@ type IncomingScan = {
 export async function POST(req: NextRequest) {
   try {
     const { session, schoolId, schoolYearId, error } =
-      await requireSchoolContext();
-    if (error) return error;
-
-    if (!isScannerRole(session!.user.role)) {
-      return apiError("Scanner login required.", 403);
-    }
+      await requireScannerApi(req);
+    if (error) return withScannerCors(req, error);
 
     const body = await req.json().catch(() => ({}));
-    const scans = Array.isArray(body?.scans) ? (body.scans as IncomingScan[]) : [];
-    if (scans.length === 0) return apiError("No scans to sync", 400);
-    if (scans.length > 100) return apiError("Maximum 100 scans per sync", 400);
-
-    await ensureBoardToken(schoolId!);
-    const yearId = await resolveScannerYearId(schoolId!, schoolYearId);
-    if (!yearId) {
-      return apiError("No active school year for this school.", 400);
+    const scans = Array.isArray(body?.scans)
+      ? (body.scans as IncomingScan[])
+      : [];
+    if (scans.length === 0) {
+      return withScannerCors(req, apiError("No scans to sync", 400));
+    }
+    if (scans.length > 100) {
+      return withScannerCors(req, apiError("Maximum 100 scans per sync", 400));
     }
 
-    // Process oldest-first so cooldowns apply correctly for catch-up.
+    await ensureBoardToken(schoolId!);
+    const yearId = await resolveScannerYearId(
+      schoolId!,
+      schoolYearId || session?.user.currentSchoolYearId
+    );
+    if (!yearId) {
+      return withScannerCors(
+        req,
+        apiError("No active school year for this school.", 400)
+      );
+    }
+
     const ordered = [...scans].sort((a, b) => {
       const atA = a.scannedAt ? new Date(a.scannedAt).getTime() : 0;
       const atB = b.scannedAt ? new Date(b.scannedAt).getTime() : 0;
@@ -76,9 +84,12 @@ export async function POST(req: NextRequest) {
       results.push(result);
     }
 
-    return apiSuccess({ results, synced: results.length });
+    return withScannerCors(
+      req,
+      apiSuccess({ results, synced: results.length })
+    );
   } catch (e) {
     console.error("[scanner sync]", e);
-    return apiError(formatPrismaClientError(e), 500);
+    return withScannerCors(req, apiError(formatPrismaClientError(e), 500));
   }
 }

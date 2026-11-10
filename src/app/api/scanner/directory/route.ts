@@ -1,28 +1,27 @@
+import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import {
   apiError,
   apiSuccess,
   formatPrismaClientError,
-  requireSchoolContext,
 } from "@/lib/api-auth";
 import { getDisplayGrade, type StudentCategory } from "@/lib/categories";
+import { requireScannerApi } from "@/lib/scanner-api-auth";
+import { scannerOptions, withScannerCors } from "@/lib/scanner-cors";
 
-function isScannerRole(role: string) {
-  return role === "SCANNER";
+export function OPTIONS(req: NextRequest) {
+  return scannerOptions(req);
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const { session, schoolId, schoolYearId, error } =
-      await requireSchoolContext();
-    if (error) return error;
-
-    if (!isScannerRole(session!.user.role)) {
-      return apiError("Scanner login required.", 403);
-    }
+      await requireScannerApi(req);
+    if (error) return withScannerCors(req, error);
 
     const yearId =
       schoolYearId ||
+      session?.user.currentSchoolYearId ||
       (
         await prisma.schoolYear.findFirst({
           where: { schoolId: schoolId!, isActive: true, isCurrent: true },
@@ -31,7 +30,10 @@ export async function GET() {
       )?.id;
 
     if (!yearId) {
-      return apiError("No active school year for this school.", 400);
+      return withScannerCors(
+        req,
+        apiError("No active school year for this school.", 400)
+      );
     }
 
     const rows = await prisma.student.findMany({
@@ -113,14 +115,17 @@ export async function GET() {
       };
     });
 
-    return apiSuccess({
-      schoolYearId: yearId,
-      syncedAt: new Date().toISOString(),
-      count: people.length,
-      people,
-    });
+    return withScannerCors(
+      req,
+      apiSuccess({
+        schoolYearId: yearId,
+        syncedAt: new Date().toISOString(),
+        count: people.length,
+        people,
+      })
+    );
   } catch (e) {
     console.error("[scanner directory]", e);
-    return apiError(formatPrismaClientError(e), 500);
+    return withScannerCors(req, apiError(formatPrismaClientError(e), 500));
   }
 }
