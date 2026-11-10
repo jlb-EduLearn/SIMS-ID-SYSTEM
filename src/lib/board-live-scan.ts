@@ -45,6 +45,7 @@ export async function publishBoardScan(input: {
     schoolYearName?: string;
     allowed?: boolean;
   }) | null;
+  scannedAt?: Date;
 }) {
   await recordBoardEntryLog({
     schoolId: input.schoolId,
@@ -52,12 +53,13 @@ export async function publishBoardScan(input: {
     found: input.found,
     scanCode: input.scanCode,
     person: input.person,
+    createdAt: input.scannedAt,
   });
 
   if (!input.found || !input.person) return null;
 
   const live: BoardLiveScan = {
-    at: new Date().toISOString(),
+    at: (input.scannedAt ?? new Date()).toISOString(),
     student: toLivePerson(input.person),
   };
 

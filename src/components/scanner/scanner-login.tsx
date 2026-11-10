@@ -65,8 +65,8 @@ export function ScannerLogin({ onSuccess }: { onSuccess: () => void }) {
               Scanner Station
             </h1>
             <p className="mt-1 text-sm text-slate-300">
-              Sign in with your school scanner credentials to open the QR
-              reader for {APP_NAME}.
+              Sign in with your school scanner credentials. On a tablet, use
+              landscape mode and Add to Home Screen for an offline-capable app.
             </p>
           </div>
         </div>

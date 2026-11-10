@@ -19,6 +19,7 @@ export async function recordBoardEntryLog(input: {
   found: boolean;
   scanCode: string;
   person?: BoardScanPerson | null;
+  createdAt?: Date;
 }) {
   const code = input.scanCode.trim().slice(0, 120);
   const person = input.person;
@@ -42,6 +43,7 @@ export async function recordBoardEntryLog(input: {
         grade: person?.gradeLabel ?? person?.grade ?? null,
         section: person?.section || null,
         department: person?.department ?? null,
+        ...(input.createdAt ? { createdAt: input.createdAt } : {}),
       },
     });
   } catch (e) {
