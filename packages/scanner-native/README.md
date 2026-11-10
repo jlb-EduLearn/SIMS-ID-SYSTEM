@@ -16,7 +16,7 @@ npm run apk:copy
 ```
 
 Output:
-- `packages/scanner-apk/dist/sims-scanner-native.apk`
-- `public/downloads/sims-scanner-native.apk`
+- `packages/scanner-apk/dist/sims-scanner-offline.apk`
+- `public/downloads/sims-scanner-offline.apk`
 
 API host defaults to `https://sims-id-system-drab.vercel.app` (`VITE_API_BASE` to override).

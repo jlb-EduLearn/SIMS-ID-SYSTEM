@@ -1,8 +1,8 @@
 import type { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
-  appId: "com.edulearn.simsscanner",
-  appName: "SIMS Scanner",
+  appId: "com.edulearn.simsscanner.offline",
+  appName: "SIMS Scanner Offline",
   webDir: "dist",
   server: {
     androidScheme: "https",

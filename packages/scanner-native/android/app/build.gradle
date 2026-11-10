@@ -4,7 +4,7 @@ android {
     namespace "com.edulearn.simsscanner"
     compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.edulearn.simsscanner"
+        applicationId "com.edulearn.simsscanner.offline"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

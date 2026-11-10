@@ -224,6 +224,38 @@ export async function wasAcceptedRecently(studentId: string, at = Date.now()) {
   };
 }
 
+function smallImageUrl(url: string) {
+  return url.includes("res.cloudinary.com") && url.includes("/upload/")
+    ? url.replace("/upload/", "/upload/w_320,h_320,c_fill,q_70/")
+    : url;
+}
+
+export async function toDataUrl(url: string | null): Promise<string | null> {
+  if (!url || url.startsWith("data:")) return url;
+  try {
+    const res = await fetch(smallImageUrl(url));
+    if (!res.ok) return url;
+    const blob = await res.blob();
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return url;
+  }
+}
+
+/** Embed photos so cards render without internet. */
+export async function cachePhotos(people: Person[]): Promise<Person[]> {
+  const out: Person[] = [];
+  for (const p of people) {
+    out.push({ ...p, photoUrl: await toDataUrl(p.photoUrl) });
+  }
+  return out;
+}
+
 export function formatCooldown(ms: number) {
   const totalSec = Math.max(1, Math.ceil(ms / 1000));
   const mins = Math.floor(totalSec / 60);

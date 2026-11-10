@@ -5,6 +5,8 @@ import { StatusBar, Style } from "@capacitor/status-bar";
 import { SCANNER_POPUP_MS } from "./config";
 import * as api from "./lib/api";
 import {
+  cachePhotos,
+  toDataUrl,
   clearSession,
   enqueue,
   formatCooldown,
@@ -67,8 +69,25 @@ export default function App() {
 
   const hydrateDirectory = useCallback(async (authToken: string) => {
     const data = await api.fetchDirectory(authToken);
-    await replaceDirectory(data.people || []);
+    const people = data.people || [];
+    await replaceDirectory(people);
+    void cachePhotos(people).then(replaceDirectory).catch(() => undefined);
   }, []);
+
+  const persistSession = useCallback(
+    async (input: {
+      token: string;
+      school: School;
+      stationName: string;
+      login: string;
+    }) => {
+      const logoUrl = await toDataUrl(input.school.logoUrl);
+      const school = { ...input.school, logoUrl };
+      await saveSession({ ...input, school });
+      setSchool(school);
+    },
+    []
+  );
 
   const flushPending = useCallback(
     async (authToken: string) => {
@@ -126,10 +145,9 @@ export default function App() {
         try {
           if (navigator.onLine) {
             const ctx = await api.fetchContext(session.token);
-            setSchool(ctx.school);
             setStationName(ctx.stationName);
             setLogin(ctx.login);
-            await saveSession({
+            await persistSession({
               token: session.token,
               school: ctx.school,
               stationName: ctx.stationName,
@@ -153,7 +171,7 @@ export default function App() {
       void sub.then((h) => h.remove());
       if (popupTimer.current) clearTimeout(popupTimer.current);
     };
-  }, [flushPending, hydrateDirectory, refreshPending]);
+  }, [flushPending, hydrateDirectory, persistSession, refreshPending]);
 
   useEffect(() => {
     if (!online || !token) return;
@@ -169,14 +187,14 @@ export default function App() {
     setAuthError(null);
     try {
       const data = await api.login(username.trim(), password);
-      await saveSession({
+      setSchool(data.school);
+      await persistSession({
         token: data.token,
         school: data.school,
         stationName: data.stationName,
         login: data.login,
       });
       setToken(data.token);
-      setSchool(data.school);
       setStationName(data.stationName);
       setLogin(data.login);
       await hydrateDirectory(data.token);

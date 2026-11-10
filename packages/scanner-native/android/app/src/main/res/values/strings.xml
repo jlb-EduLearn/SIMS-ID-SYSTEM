@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">SIMS Scanner</string>
-    <string name="title_activity_main">SIMS Scanner</string>
-    <string name="package_name">com.edulearn.simsscanner</string>
-    <string name="custom_url_scheme">com.edulearn.simsscanner</string>
+    <string name="app_name">SIMS Scanner Offline</string>
+    <string name="title_activity_main">SIMS Scanner Offline</string>
+    <string name="package_name">com.edulearn.simsscanner.offline</string>
+    <string name="custom_url_scheme">com.edulearn.simsscanner.offline</string>
 </resources>

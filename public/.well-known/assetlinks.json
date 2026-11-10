@@ -1,8 +1,0 @@
-[{
-      "relation": ["delegate_permission/common.handle_all_urls"],
-      "target": {
-        "namespace": "android_app",
-        "package_name": "com.edulearn.simsscanner",
-        "sha256_cert_fingerprints": ["66:F4:F3:D2:41:4D:58:A9:FE:A9:8E:1F:D5:B0:78:73:F9:39:20:CF:FE:E2:C1:C6:ED:A8:86:5F:3D:F4:D5:48"]
-      }
-    }]
