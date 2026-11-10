@@ -47,3 +47,11 @@ next-env.d.ts
 # uploads
 /public/uploads
 .env*
+
+# Android signing secrets (never commit)
+/packages/scanner-apk/secrets/*
+!/packages/scanner-apk/secrets/.gitkeep
+/packages/scanner-apk/.tmp-extract/
+/packages/scanner-apk/*-raw.zip
+
+

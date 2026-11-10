@@ -2,10 +2,11 @@
   "name": "SIMS Scanner Station",
   "short_name": "SIMS Scan",
   "description": "Offline-capable QR scanner for school ID entry",
+  "id": "/scanner",
   "start_url": "/scanner",
-  "scope": "/scanner",
+  "scope": "/",
   "display": "standalone",
-  "orientation": "landscape",
+  "orientation": "any",
   "background_color": "#0b1220",
   "theme_color": "#0b1220",
   "icons": [
@@ -14,6 +15,12 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
+    },
+    {
+      "src": "/SIMS-white-colored-blue.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }

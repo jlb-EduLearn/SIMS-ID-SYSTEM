@@ -16,6 +16,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:setup": "prisma generate && prisma db push && tsx prisma/seed.ts",
     "pack:vps": "bash scripts/pack-for-vps.sh",
+    "apk:scanner": "node packages/scanner-apk/generate.mjs",
     "qa:api": "node scripts/qa-api-smoke.mjs",
     "qa:e2e": "node scripts/qa-e2e-full.mjs",
     "hardware-agent": "node tools/hardware-agent/server.mjs",
