@@ -42,7 +42,7 @@ Push `main` to your GitHub repo (already: `jlb-EduLearn/SIMS-ID-SYSTEM`).
    | `DATABASE_URL` | Neon **pooled** connection string |
    | `DIRECT_URL` | Neon **direct** connection string |
    | `NEXTAUTH_SECRET` | `openssl rand -base64 32` |
-   | `NEXTAUTH_URL` | `https://YOUR-PROJECT.vercel.app` (update if you add a custom domain) |
+   | `NEXTAUTH_URL` | `https://sims-id-system-drab.vercel.app` (update if you add a custom domain) |
    | `CLOUDINARY_CLOUD_NAME` | your cloud name |
    | `CLOUDINARY_API_KEY` | your API key |
    | `CLOUDINARY_API_SECRET` | your API secret |
