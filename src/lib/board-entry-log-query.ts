@@ -62,11 +62,11 @@ export function buildBoardEntryLogWhere(
     ...(search
       ? {
           OR: [
-            { fullName: { contains: search } },
-            { displayId: { contains: search } },
-            { scanCode: { contains: search } },
-            { grade: { contains: search } },
-            { department: { contains: search } },
+            { fullName: { contains: search, mode: "insensitive" } },
+            { displayId: { contains: search, mode: "insensitive" } },
+            { scanCode: { contains: search, mode: "insensitive" } },
+            { grade: { contains: search, mode: "insensitive" } },
+            { department: { contains: search, mode: "insensitive" } },
           ],
         }
       : {}),

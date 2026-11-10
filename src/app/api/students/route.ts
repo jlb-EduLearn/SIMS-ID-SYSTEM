@@ -68,20 +68,24 @@ export async function GET(req: NextRequest) {
     excludeStudentIds = already.map((s) => s.studentId);
   }
 
+  const contains = (value: string) => ({
+    contains: value,
+    mode: "insensitive" as const,
+  });
   const searchOr = search
     ? [
-        { firstName: { contains: search } },
-        { lastName: { contains: search } },
-        { studentId: { contains: search } },
-        { employeeNumber: { contains: search } },
-        { email: { contains: search } },
-        { course: { contains: search } },
-        { department: { contains: search } },
-        { position: { contains: search } },
-        { designation: { contains: search } },
-        { emergencyFirstName: { contains: search } },
-        { emergencyLastName: { contains: search } },
-        { emergencyPhone: { contains: search } },
+        { firstName: contains(search) },
+        { lastName: contains(search) },
+        { studentId: contains(search) },
+        { employeeNumber: contains(search) },
+        { email: contains(search) },
+        { course: contains(search) },
+        { department: contains(search) },
+        { position: contains(search) },
+        { designation: contains(search) },
+        { emergencyFirstName: contains(search) },
+        { emergencyLastName: contains(search) },
+        { emergencyPhone: contains(search) },
       ]
     : null;
 

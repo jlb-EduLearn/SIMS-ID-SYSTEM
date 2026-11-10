@@ -61,14 +61,16 @@ export async function GET(req: NextRequest) {
     ...(search
       ? {
           OR: [
-            { templateName: { contains: search } },
-            { printedBy: { name: { contains: search } } },
+            { templateName: { contains: search, mode: "insensitive" } },
+            { printedBy: { name: { contains: search, mode: "insensitive" } } },
             {
               entries: {
                 some: {
                   OR: [
-                    { studentName: { contains: search } },
-                    { studentNumber: { contains: search } },
+                    { studentName: { contains: search, mode: "insensitive" } },
+                    {
+                      studentNumber: { contains: search, mode: "insensitive" },
+                    },
                   ],
                 },
               },

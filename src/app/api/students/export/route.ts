@@ -30,16 +30,16 @@ export async function GET(req: NextRequest) {
     ...(search
       ? {
           OR: [
-            { firstName: { contains: search } },
-            { lastName: { contains: search } },
-            { studentId: { contains: search } },
-            { email: { contains: search } },
-            { course: { contains: search } },
-            { department: { contains: search } },
-            { position: { contains: search } },
-            { emergencyFirstName: { contains: search } },
-            { emergencyLastName: { contains: search } },
-            { emergencyPhone: { contains: search } },
+            { firstName: { contains: search, mode: "insensitive" } },
+            { lastName: { contains: search, mode: "insensitive" } },
+            { studentId: { contains: search, mode: "insensitive" } },
+            { email: { contains: search, mode: "insensitive" } },
+            { course: { contains: search, mode: "insensitive" } },
+            { department: { contains: search, mode: "insensitive" } },
+            { position: { contains: search, mode: "insensitive" } },
+            { emergencyFirstName: { contains: search, mode: "insensitive" } },
+            { emergencyLastName: { contains: search, mode: "insensitive" } },
+            { emergencyPhone: { contains: search, mode: "insensitive" } },
           ],
         }
       : {}),

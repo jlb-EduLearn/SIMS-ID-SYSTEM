@@ -6,7 +6,7 @@
     "dev": "node scripts/start-dev.mjs",
     "dev:lan": "node scripts/start-dev.mjs",
     "dev:clean": "rm -rf .next && node scripts/start-dev.mjs",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "start": "next start -p 3000",
     "start:lan": "next start -p 3000 -H 0.0.0.0",
     "start:render": "node scripts/start-render.mjs",
