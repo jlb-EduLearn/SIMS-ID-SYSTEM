@@ -1,9 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { Scanner, useDevices } from "@yudiel/react-qr-scanner";
+import { App as CapacitorApp } from "@capacitor/app";
 import { Network } from "@capacitor/network";
 import { StatusBar, Style } from "@capacitor/status-bar";
 import { SCANNER_POPUP_MS } from "./config";
 import * as api from "./lib/api";
+import {
+  beginCameraSession,
+  endCameraSession,
+  isActiveCameraSession,
+  stopAllCameraStreams,
+  waitForCameraRequests,
+  withCameraSession,
+  type CameraSession,
+} from "./lib/camera-gate";
 import {
   cachePhotos,
   toDataUrl,
@@ -23,6 +34,28 @@ import {
 } from "./lib/offline";
 
 type Facing = "environment" | "user";
+
+const CAMERA_FACING_KEY = "sims-native-scanner-facing";
+const CAMERA_DEVICE_KEY = "sims-native-scanner-device";
+
+function storedFacing(): Facing {
+  try {
+    return localStorage.getItem(CAMERA_FACING_KEY) === "user"
+      ? "user"
+      : "environment";
+  } catch {
+    return "environment";
+  }
+}
+
+function storedDeviceId() {
+  try {
+    return localStorage.getItem(CAMERA_DEVICE_KEY) || "";
+  } catch {
+    return "";
+  }
+}
+
 type Popup = {
   kind: "success" | "already" | "miss" | "queued";
   message: string;
@@ -42,20 +75,94 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(false);
   const [online, setOnline] = useState(true);
   const [pending, setPending] = useState(0);
-  const [facing, setFacing] = useState<Facing>("environment");
-  const [deviceId, setDeviceId] = useState("");
+  const [facing, setFacing] = useState<Facing>(storedFacing);
+  const [deviceId, setDeviceId] = useState(storedDeviceId);
   const [popup, setPopup] = useState<Popup | null>(null);
   const [busy, setBusy] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [camera, setCamera] = useState<CameraSession | null>(null);
+  const [stopping, setStopping] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [confirmSignOut, setConfirmSignOut] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState<string | null>(null);
   const lastCodeRef = useRef("");
   const lastAtRef = useRef(0);
   const popupTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const syncingRef = useRef(false);
+  const scanLockRef = useRef(false);
+  const scanningRef = useRef(false);
+  const shutdownRef = useRef<Promise<void> | null>(null);
 
-  const constraints = useMemo(() => {
-    if (deviceId) return { deviceId: { exact: deviceId } };
-    return { facingMode: facing };
-  }, [deviceId, facing]);
+  const constraints = useMemo(
+    () =>
+      withCameraSession(
+        deviceId ? { deviceId: { exact: deviceId } } : { facingMode: facing },
+        camera
+      ),
+    [deviceId, facing, camera]
+  );
+
+  // Camera stays off until the operator presses Start. Stopping blocks new
+  // camera requests, releases tracks, waits for in-flight requests, and only
+  // then unmounts the Scanner.
+  const stopCamera = useCallback(() => {
+    if (shutdownRef.current) return shutdownRef.current;
+    scanningRef.current = false;
+    setStopping(true);
+    const run = (async () => {
+      await endCameraSession();
+      flushSync(() => setCamera(null));
+      stopAllCameraStreams();
+    })();
+    shutdownRef.current = run.finally(() => {
+      shutdownRef.current = null;
+      setStopping(false);
+    });
+    return shutdownRef.current;
+  }, []);
+
+  const startCamera = useCallback(() => {
+    if (shutdownRef.current || scanningRef.current) return;
+    const session = beginCameraSession();
+    scanningRef.current = true;
+    setCameraError(null);
+    setCamera(session);
+  }, []);
+
+  const selectCamera = useCallback(
+    (next: { facing: Facing; deviceId: string }) => {
+      void (async () => {
+        const restart = scanningRef.current;
+        if (restart || shutdownRef.current) await stopCamera();
+        setCameraError(null);
+        setFacing(next.facing);
+        setDeviceId(next.deviceId);
+        try {
+          localStorage.setItem(CAMERA_FACING_KEY, next.facing);
+          localStorage.setItem(CAMERA_DEVICE_KEY, next.deviceId);
+        } catch {
+          /* preference only */
+        }
+        if (restart) startCamera();
+      })();
+    },
+    [startCamera, stopCamera]
+  );
+
+  // appStateChange(false) fires only when the activity is fully stopped. A
+  // plain pause, such as the camera permission dialog, must not end the
+  // session that requested the permission.
+  useEffect(() => {
+    const appState = CapacitorApp.addListener("appStateChange", (state) => {
+      if (!state.isActive) void stopCamera();
+    });
+    return () => {
+      void appState.then((h) => h.remove()).catch(() => undefined);
+      scanningRef.current = false;
+      void endCameraSession();
+    };
+  }, [stopCamera]);
 
   const refreshPending = useCallback(async () => {
     setPending((await listPending()).length);
@@ -206,23 +313,62 @@ export default function App() {
     }
   }
 
-  async function handleLogout() {
-    await clearSession();
-    setToken(null);
-    setSchool(null);
-    setPopup(null);
+  // Clears only the signed-in session. Pending offline scans, the accepted
+  // cooldown history and the cached directory stay in IndexedDB and sync after
+  // the next sign-in.
+  async function handleSignOut() {
+    setSigningOut(true);
+    setSignOutError(null);
+    try {
+      await stopCamera();
+      await waitForCameraRequests();
+      stopAllCameraStreams();
+      await clearSession();
+      if (popupTimer.current) clearTimeout(popupTimer.current);
+      setPopup(null);
+      setCameraError(null);
+      setConfirmSignOut(false);
+      setSettingsOpen(false);
+      setPassword("");
+      setAuthError(null);
+      setToken(null);
+      setSchool(null);
+    } catch (err) {
+      setSignOutError(
+        err instanceof Error ? err.message : "Could not sign out. Try again."
+      );
+    } finally {
+      setSigningOut(false);
+    }
   }
+
+  useEffect(() => {
+    const back = CapacitorApp.addListener("backButton", () => {
+      if (confirmSignOut) {
+        if (!signingOut) setConfirmSignOut(false);
+      } else if (settingsOpen) {
+        setSettingsOpen(false);
+      } else {
+        void CapacitorApp.exitApp().catch(() => undefined);
+      }
+    });
+    return () => {
+      void back.then((h) => h.remove()).catch(() => undefined);
+    };
+  }, [confirmSignOut, settingsOpen, signingOut]);
 
   const onScan = useCallback(
     async (code: string) => {
       const trimmed = code.trim();
-      if (!trimmed || !token || busy || popup) return;
+      if (!trimmed || !token || busy || popup || settingsOpen) return;
+      if (!scanningRef.current || scanLockRef.current) return;
       const now = Date.now();
       if (trimmed === lastCodeRef.current && now - lastAtRef.current < 2000) {
         return;
       }
       lastCodeRef.current = trimmed;
       lastAtRef.current = now;
+      scanLockRef.current = true;
       setBusy(true);
 
       try {
@@ -302,10 +448,11 @@ export default function App() {
           });
         }
       } finally {
+        scanLockRef.current = false;
         setBusy(false);
       }
     },
-    [busy, popup, refreshPending, showPopup, token]
+    [busy, popup, refreshPending, settingsOpen, showPopup, token]
   );
 
   if (booting) {
@@ -317,7 +464,10 @@ export default function App() {
       <div className="login">
         <form className="login-card" onSubmit={handleLogin}>
           <h1>SIMS Scanner</h1>
-          <p>Native tablet app — landscape camera left, school logo right.</p>
+          <p>
+            Sign in with this station&apos;s scanner account. The camera stays
+            off until you press Start Scanner.
+          </p>
           {authError && <div className="error">{authError}</div>}
           <div className="field">
             <label htmlFor="user">Scanner username</label>
@@ -356,13 +506,28 @@ export default function App() {
         .join(" · ")
     : "";
 
+  const selectedDevice = deviceId
+    ? devices.find((d) => d.deviceId === deviceId)
+    : undefined;
+  const cameraLabel = deviceId
+    ? selectedDevice?.label || "Specific camera"
+    : facing === "user"
+      ? "Front camera"
+      : "Rear camera";
+  const syncNow = () => {
+    if (!token) return;
+    void hydrateDirectory(token)
+      .then(() => flushPending(token))
+      .catch(() => undefined);
+  };
+
   return (
     <div className="app">
       <header className="topbar">
-        <div>
+        <div className="topbar-title">
           <h1>{school.name}</h1>
           <p>
-            {login} · {stationName}
+            {stationName || login} · {cameraLabel}
           </p>
         </div>
         <div className="topbar-actions">
@@ -370,63 +535,35 @@ export default function App() {
             {online ? "Online" : "Offline"}
             {pending > 0 ? ` · ${pending} queued` : ""}
           </span>
-          <div className="seg">
+          {camera ? (
             <button
               type="button"
-              className={!deviceId && facing === "environment" ? "active" : ""}
-              onClick={() => {
-                setFacing("environment");
-                setDeviceId("");
-              }}
+              className="btn danger"
+              disabled={stopping || signingOut}
+              onClick={() => void stopCamera()}
             >
-              Back cam
+              {stopping ? "Stopping…" : "Stop Scanner"}
             </button>
+          ) : (
             <button
               type="button"
-              className={!deviceId && facing === "user" ? "active" : ""}
-              onClick={() => {
-                setFacing("user");
-                setDeviceId("");
-              }}
+              className="btn primary"
+              disabled={stopping || signingOut}
+              onClick={startCamera}
             >
-              Front cam
+              {stopping ? "Stopping…" : "Start Scanner"}
             </button>
-          </div>
-          {devices.length > 1 && (
-            <select
-              value={deviceId}
-              onChange={(e) => setDeviceId(e.target.value)}
-              style={{
-                height: 34,
-                borderRadius: 10,
-                border: "1px solid rgba(255,255,255,.12)",
-                background: "rgba(0,0,0,.35)",
-                color: "white",
-                maxWidth: 160,
-              }}
-            >
-              <option value="">Auto camera</option>
-              {devices.map((d) => (
-                <option key={d.deviceId} value={d.deviceId}>
-                  {d.label || `Camera ${d.deviceId.slice(0, 6)}`}
-                </option>
-              ))}
-            </select>
           )}
-          <button
-            type="button"
-            className="btn"
-            onClick={() => {
-              if (!token) return;
-              void hydrateDirectory(token)
-                .then(() => flushPending(token))
-                .catch(() => undefined);
-            }}
-          >
+          <button type="button" className="btn" onClick={syncNow}>
             Sync
           </button>
-          <button type="button" className="btn ghost" onClick={() => void handleLogout()}>
-            Sign out
+          <button
+            type="button"
+            className="btn settings-btn"
+            aria-haspopup="dialog"
+            onClick={() => setSettingsOpen(true)}
+          >
+            <span aria-hidden="true">⚙</span> Settings
           </button>
         </div>
       </header>
@@ -435,50 +572,82 @@ export default function App() {
         {/* LEFT: scanner camera */}
         <section className="cam-pane">
           <div className="cam-frame">
-            <Scanner
-              onScan={(codes) => {
-                const value = codes[0]?.rawValue;
-                if (value) void onScan(value);
-              }}
-              onError={(err) =>
-                setCameraError(err?.message || "Camera unavailable")
-              }
-              formats={["qr_code"]}
-              sound
-              allowMultiple
-              scanDelay={1800}
-              paused={Boolean(popup) || busy}
-              constraints={constraints}
-              styles={{
-                container: { width: "100%", height: "100%" },
-                video: { objectFit: "cover" },
-              }}
-              components={{ finder: true, torch: true }}
-            />
-            {cameraError && (
-              <div
-                style={{
-                  position: "absolute",
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  padding: 12,
-                  background: "rgba(127,29,29,.9)",
-                  fontSize: 13,
+            {camera ? (
+              <Scanner
+                key={camera.id}
+                onScan={(codes) => {
+                  if (!isActiveCameraSession(camera)) return;
+                  const value = codes[0]?.rawValue;
+                  if (value) void onScan(value);
                 }}
-              >
-                {cameraError}
+                onError={(err) => {
+                  if (!isActiveCameraSession(camera)) return;
+                  setCameraError(err?.message || "Camera unavailable");
+                  void stopCamera();
+                }}
+                formats={["qr_code"]}
+                sound
+                allowMultiple
+                scanDelay={1800}
+                paused={Boolean(popup) || busy || settingsOpen}
+                constraints={constraints}
+                styles={{
+                  container: { width: "100%", height: "100%" },
+                  video: { objectFit: "cover" },
+                }}
+                components={{ finder: true, torch: true }}
+              />
+            ) : (
+              <div className="cam-idle">
+                <div className="cam-idle-icon" aria-hidden="true">
+                  ▣
+                </div>
+                <h2>{stopping ? "Stopping camera…" : "Camera is off"}</h2>
+                {cameraError ? (
+                  <div className="cam-error" role="alert">
+                    <strong>Camera problem:</strong> {cameraError}
+                    <span>
+                      Allow camera permission for SIMS Scanner in Android
+                      settings, or choose the other camera in Settings, then
+                      retry.
+                    </span>
+                  </div>
+                ) : (
+                  <p>
+                    Using the {cameraLabel.toLowerCase()}. Press Start Scanner
+                    to turn it on.
+                  </p>
+                )}
+                <div className="cam-idle-actions">
+                  <button
+                    type="button"
+                    className="btn primary large"
+                    disabled={stopping || signingOut}
+                    onClick={startCamera}
+                  >
+                    {cameraError ? "Retry camera" : "Start Scanner"}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn large"
+                    onClick={() => setSettingsOpen(true)}
+                  >
+                    Camera settings
+                  </button>
+                </div>
               </div>
             )}
           </div>
           <p className="cam-hint">
-            Left = camera · Right = school logo / student card after scan
+            {camera
+              ? "Scanning · hold the QR code inside the frame"
+              : "Camera stays off until you press Start Scanner"}
           </p>
         </section>
 
         {/* RIGHT: school logo / student popup */}
-        <section className="logo-pane">
-          <div>
+        <section className="logo-pane" aria-live="polite">
+          <div className="logo-pane-inner">
             <div
               className={`card ${
                 popup?.kind === "success" || popup?.kind === "queued"
@@ -494,26 +663,11 @@ export default function App() {
                 school.logoUrl ? (
                   <img className="logo" src={school.logoUrl} alt={school.name} />
                 ) : (
-                  <div style={{ padding: 40, color: "#64748b" }}>
-                    No school logo uploaded
-                  </div>
+                  <div className="logo-missing">No school logo uploaded</div>
                 )
               ) : (
                 <>
-                  <div
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 800,
-                      letterSpacing: "0.16em",
-                      textTransform: "uppercase",
-                      color:
-                        popup.kind === "already"
-                          ? "#b45309"
-                          : popup.kind === "miss"
-                            ? "#be123c"
-                            : "#047857",
-                    }}
-                  >
+                  <div className={`result-kicker ${popup.kind}`}>
                     {popup.kind === "success"
                       ? "Scan accepted"
                       : popup.kind === "queued"
@@ -531,17 +685,7 @@ export default function App() {
                           alt={popup.student.fullName}
                         />
                       ) : (
-                        <div
-                          className="photo"
-                          style={{
-                            display: "grid",
-                            placeItems: "center",
-                            background: "#e2e8f0",
-                            fontSize: 56,
-                            fontWeight: 700,
-                            color: "#64748b",
-                          }}
-                        >
+                        <div className="photo photo-fallback">
                           {popup.student.fullName.slice(0, 1)}
                         </div>
                       )}
@@ -550,7 +694,7 @@ export default function App() {
                       <div className="meta">{gradeLine}</div>
                     </>
                   ) : (
-                    <p style={{ marginTop: 28 }}>{popup.message}</p>
+                    <p className="result-message">{popup.message}</p>
                   )}
                   <div className="status">{popup.message}</div>
                 </>
@@ -563,20 +707,192 @@ export default function App() {
                 <p>{school.code}</p>
               </div>
             ) : (
-              <p
-                style={{
-                  marginTop: 14,
-                  textAlign: "center",
-                  color: "#bae6fd",
-                  fontSize: 13,
-                }}
-              >
-                Returning to school logo in 5 seconds…
-              </p>
+              <p className="returning">Returning to school logo in 5 seconds…</p>
             )}
           </div>
         </section>
       </div>
+
+      {settingsOpen && (
+        <div
+          className="settings"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="settings-title"
+        >
+          <header className="settings-bar">
+            <button
+              type="button"
+              className="btn back-btn"
+              onClick={() => setSettingsOpen(false)}
+            >
+              <span aria-hidden="true">←</span> Back to scanner
+            </button>
+            <h1 id="settings-title">Settings</h1>
+          </header>
+
+          <div className="settings-body">
+            <section className="settings-section">
+              <h2>Camera</h2>
+              <p className="settings-note">
+                Selected: <strong>{cameraLabel}</strong> ·{" "}
+                {stopping
+                  ? "Camera is stopping"
+                  : camera
+                    ? "Scanner paused while Settings is open"
+                    : "Camera is off"}
+              </p>
+              <div className="camera-options">
+                <button
+                  type="button"
+                  className={`camera-option ${
+                    !deviceId && facing === "environment" ? "selected" : ""
+                  }`}
+                  aria-pressed={!deviceId && facing === "environment"}
+                  disabled={stopping || signingOut}
+                  onClick={() =>
+                    selectCamera({ facing: "environment", deviceId: "" })
+                  }
+                >
+                  <span className="camera-option-name">Rear camera</span>
+                  <span className="camera-option-hint">
+                    {!deviceId && facing === "environment"
+                      ? "Selected"
+                      : "Faces away from the screen"}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className={`camera-option ${
+                    !deviceId && facing === "user" ? "selected" : ""
+                  }`}
+                  aria-pressed={!deviceId && facing === "user"}
+                  disabled={stopping || signingOut}
+                  onClick={() => selectCamera({ facing: "user", deviceId: "" })}
+                >
+                  <span className="camera-option-name">Front camera</span>
+                  <span className="camera-option-hint">
+                    {!deviceId && facing === "user"
+                      ? "Selected"
+                      : "Faces the operator"}
+                  </span>
+                </button>
+              </div>
+              {devices.length > 1 && (
+                <label className="field device-field">
+                  <span>Specific camera (optional)</span>
+                  <select
+                    value={deviceId}
+                    disabled={stopping || signingOut}
+                    onChange={(e) =>
+                      selectCamera({ facing, deviceId: e.target.value })
+                    }
+                  >
+                    <option value="">Use the rear/front choice above</option>
+                    {devices.map((d) => (
+                      <option key={d.deviceId} value={d.deviceId}>
+                        {d.label || `Camera ${d.deviceId.slice(0, 6)}`}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              <p className="settings-note">
+                Changing the camera turns the current camera off first. If the
+                scanner was running, it starts again with the new camera when
+                you return.
+              </p>
+            </section>
+
+            <section className="settings-section">
+              <h2>Station</h2>
+              <dl className="settings-facts">
+                <div>
+                  <dt>School</dt>
+                  <dd>{school.name}</dd>
+                </div>
+                <div>
+                  <dt>Station</dt>
+                  <dd>{stationName || "—"}</dd>
+                </div>
+                <div>
+                  <dt>Signed in as</dt>
+                  <dd>{login || "—"}</dd>
+                </div>
+                <div>
+                  <dt>Connection</dt>
+                  <dd>
+                    {online ? "Online" : "Offline"} · {pending} scan
+                    {pending === 1 ? "" : "s"} waiting to sync
+                  </dd>
+                </div>
+              </dl>
+            </section>
+
+            <section className="settings-section">
+              <h2>Account</h2>
+              <p className="settings-note">
+                Signing out returns to the login screen. Scans saved offline
+                stay on this tablet.
+              </p>
+              <button
+                type="button"
+                className="btn danger large"
+                disabled={signingOut}
+                onClick={() => {
+                  setSignOutError(null);
+                  setConfirmSignOut(true);
+                }}
+              >
+                Sign out
+              </button>
+            </section>
+          </div>
+        </div>
+      )}
+
+      {confirmSignOut && (
+        <div className="dialog-backdrop">
+          <div
+            className="dialog"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="signout-title"
+            aria-describedby="signout-desc"
+          >
+            <h2 id="signout-title">Sign out of this scanner?</h2>
+            <p id="signout-desc">
+              The camera will turn off and the login screen will open.
+              {pending > 0
+                ? ` ${pending} scan${pending === 1 ? "" : "s"} waiting to sync will stay saved on this tablet and sync after a scanner account signs in again.`
+                : " No scans are waiting to sync."}
+            </p>
+            {signOutError && (
+              <div className="error" role="alert">
+                {signOutError}
+              </div>
+            )}
+            <div className="dialog-actions">
+              <button
+                type="button"
+                className="btn large"
+                disabled={signingOut}
+                onClick={() => setConfirmSignOut(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn danger large"
+                disabled={signingOut}
+                onClick={() => void handleSignOut()}
+              >
+                {signingOut ? "Signing out…" : "Sign out"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -10,6 +10,11 @@
   --ok: #34d399;
   --warn: #fbbf24;
   --bad: #fb7185;
+  --tap: 44px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
 }
 
 * {
@@ -33,39 +38,111 @@ select {
   font: inherit;
 }
 
+input,
+select {
+  font-size: 16px;
+}
+
+h1,
+h2,
+p {
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Buttons ---------- */
+
+.btn {
+  min-height: var(--tap);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.btn.primary {
+  background: #0284c7;
+  border-color: #0284c7;
+  color: white;
+}
+
+.btn.danger {
+  background: rgba(225, 29, 72, 0.85);
+  border-color: rgba(251, 113, 133, 0.6);
+  color: white;
+}
+
+.btn.large {
+  min-height: 50px;
+  padding: 12px 22px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.btn:disabled,
+.camera-option:disabled,
+select:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* ---------- Station shell ---------- */
+
 .app {
   width: 100%;
   height: 100%;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .topbar {
+  flex: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 10px 14px;
+  gap: 8px 12px;
+  padding: calc(8px + var(--safe-top)) calc(14px + var(--safe-right)) 8px
+    calc(14px + var(--safe-left));
   border-bottom: 1px solid var(--line);
   background: rgba(11, 18, 32, 0.96);
   flex-wrap: wrap;
 }
 
+.topbar-title {
+  min-width: 0;
+  flex: 1 1 200px;
+}
+
 .topbar h1 {
   margin: 0;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .topbar p {
   margin: 2px 0 0;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .topbar-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
   flex-wrap: wrap;
 }
@@ -73,11 +150,12 @@ select {
 .pill {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  min-height: 32px;
   border-radius: 999px;
-  padding: 6px 10px;
-  font-size: 11px;
+  padding: 6px 12px;
+  font-size: 12px;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .pill.online {
@@ -90,58 +168,27 @@ select {
   color: var(--warn);
 }
 
-.seg {
-  display: inline-flex;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  overflow: hidden;
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.seg button,
-.btn {
-  border: 0;
-  background: transparent;
-  color: var(--text);
-  padding: 8px 12px;
-  cursor: pointer;
-}
-
-.seg button.active,
-.btn.primary {
-  background: #0284c7;
-  color: white;
-}
-
-.btn {
-  border-radius: 10px;
-  border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.btn.ghost {
-  background: transparent;
-}
-
+/* Landscape (tablet default): camera left, result right. */
 .station {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: 1.15fr 0.85fr;
+  grid-template-columns: minmax(0, 1.15fr) minmax(300px, 0.85fr);
 }
 
 .cam-pane,
 .logo-pane {
+  min-width: 0;
   min-height: 0;
   position: relative;
 }
 
 .cam-pane {
   border-right: 1px solid var(--line);
-  padding: 14px;
+  padding: 12px 12px calc(10px + var(--safe-bottom)) calc(12px + var(--safe-left));
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .cam-frame {
@@ -155,80 +202,188 @@ select {
 }
 
 .cam-hint {
+  margin: 0;
   font-size: 12px;
   color: var(--muted);
 }
 
-.logo-pane {
+.cam-idle {
+  height: 100%;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 18px;
+  gap: 12px;
+  padding: 20px;
+  text-align: center;
+  overflow-y: auto;
+}
+
+.cam-idle-icon {
+  width: 56px;
+  height: 56px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--sky);
+  font-size: 28px;
+}
+
+.cam-idle h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.cam-idle p {
+  margin: 0;
+  max-width: 380px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.cam-idle-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+.cam-error {
+  max-width: 440px;
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(251, 113, 133, 0.45);
+  background: rgba(127, 29, 29, 0.55);
+  color: #fecdd3;
+  font-size: 14px;
+  text-align: left;
+}
+
+.cam-error span {
+  color: #fda4af;
+  font-size: 13px;
+}
+
+/* ---------- Result / school panel ---------- */
+
+.logo-pane {
+  display: flex;
+  padding: 14px calc(14px + var(--safe-right)) calc(14px + var(--safe-bottom)) 14px;
+  overflow-y: auto;
   background:
     radial-gradient(circle at 70% 28%, #1d4ed8 0%, transparent 42%),
     linear-gradient(160deg, transparent 40%, rgba(14, 165, 233, 0.12)),
     var(--bg);
 }
 
+.logo-pane-inner {
+  margin: auto;
+  width: min(100%, 460px);
+}
+
 .card {
-  width: min(100%, 420px);
+  width: 100%;
   background: rgba(255, 255, 255, 0.96);
   color: #0f172a;
-  border-radius: 24px;
-  padding: 22px;
+  border-radius: 22px;
+  padding: clamp(14px, 3vh, 24px);
   text-align: center;
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
 }
 
 .card img.logo {
-  max-height: 220px;
+  display: block;
+  margin: 0 auto;
   max-width: 100%;
+  max-height: clamp(110px, 34vh, 260px);
   object-fit: contain;
 }
 
-.card img.photo {
-  width: 200px;
-  height: 200px;
-  object-fit: cover;
-  border-radius: 18px;
-  margin: 8px auto;
-  display: block;
-}
-
-.card h2 {
-  margin: 10px 0 4px;
-  font-size: 28px;
-}
-
-.card .meta {
+.logo-missing {
+  padding: 32px 12px;
   color: #64748b;
-  font-size: 14px;
 }
 
-.card .status {
-  margin-top: 12px;
-  font-size: 13px;
+.result-kicker {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #047857;
+}
+
+.result-kicker.already {
+  color: #b45309;
+}
+
+.result-kicker.miss {
+  color: #be123c;
+}
+
+.card .photo {
+  display: block;
+  width: clamp(120px, 30vh, 240px);
+  height: clamp(120px, 30vh, 240px);
+  max-width: 100%;
+  margin: 8px auto;
+  border-radius: 18px;
+  object-fit: cover;
+}
+
+.card .photo-fallback {
+  display: grid;
+  place-items: center;
+  background: #e2e8f0;
+  color: #64748b;
+  font-size: clamp(40px, 8vh, 64px);
   font-weight: 700;
 }
 
+.card h2 {
+  margin: 8px 0 4px;
+  font-size: clamp(22px, 4.2vh, 32px);
+  line-height: 1.15;
+}
+
+.card .meta {
+  color: #475569;
+  font-size: 15px;
+}
+
+.card .status {
+  margin-top: 10px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.result-message {
+  margin: 20px 0 0;
+  font-size: 16px;
+}
+
 .card.ok {
-  outline: 3px solid rgba(52, 211, 153, 0.55);
+  outline: 4px solid rgba(52, 211, 153, 0.6);
 }
 .card.warn {
-  outline: 3px solid rgba(251, 191, 36, 0.55);
+  outline: 4px solid rgba(251, 191, 36, 0.6);
 }
 .card.bad {
-  outline: 3px solid rgba(251, 113, 133, 0.55);
+  outline: 4px solid rgba(251, 113, 133, 0.6);
 }
 
 .school-title {
-  margin-top: 16px;
+  margin-top: 14px;
   text-align: center;
 }
 
 .school-title h2 {
   margin: 0;
-  font-size: 30px;
+  font-size: clamp(22px, 4.5vh, 30px);
 }
 
 .school-title p {
@@ -239,11 +394,21 @@ select {
   font-size: 12px;
 }
 
+.returning {
+  margin: 12px 0 0;
+  text-align: center;
+  color: #bae6fd;
+  font-size: 13px;
+}
+
+/* ---------- Login ---------- */
+
 .login {
-  min-height: 100%;
+  height: 100%;
+  overflow-y: auto;
   display: grid;
   place-items: center;
-  padding: 24px;
+  padding: calc(20px + var(--safe-top)) 16px calc(20px + var(--safe-bottom));
   background:
     radial-gradient(circle at 20% 20%, #1e3a5f 0%, transparent 45%),
     var(--bg);
@@ -254,7 +419,7 @@ select {
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.05);
   border-radius: 20px;
-  padding: 28px;
+  padding: clamp(18px, 4vw, 28px);
 }
 
 .login-card h1 {
@@ -268,23 +433,31 @@ select {
   font-size: 14px;
 }
 
+.login-card .btn {
+  width: 100%;
+}
+
 .field {
   display: grid;
   gap: 6px;
   margin-bottom: 12px;
 }
 
-.field label {
-  font-size: 12px;
+.field label,
+.field > span {
+  font-size: 13px;
   color: #cbd5e1;
 }
 
-.field input {
+.field input,
+.field select {
+  width: 100%;
+  min-height: var(--tap);
   border-radius: 12px;
   border: 1px solid var(--line);
   background: rgba(0, 0, 0, 0.35);
   color: white;
-  padding: 12px 14px;
+  padding: 10px 14px;
 }
 
 .error {
@@ -293,24 +466,295 @@ select {
   color: #fecdd3;
   border-radius: 12px;
   padding: 10px 12px;
-  font-size: 13px;
+  font-size: 14px;
   margin-bottom: 12px;
 }
 
 .center {
-  min-height: 100%;
+  height: 100%;
   display: grid;
   place-items: center;
   color: var(--muted);
 }
 
-@media (max-width: 900px) and (orientation: portrait) {
+/* ---------- Settings screen ---------- */
+
+.settings {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+
+.settings-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: calc(8px + var(--safe-top)) calc(14px + var(--safe-right)) 8px
+    calc(14px + var(--safe-left));
+  border-bottom: 1px solid var(--line);
+  background: rgba(11, 18, 32, 0.98);
+}
+
+.settings-bar h1 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.settings-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px calc(16px + var(--safe-right)) calc(24px + var(--safe-bottom))
+    calc(16px + var(--safe-left));
+}
+
+.settings-section {
+  width: min(100%, 720px);
+  margin: 0 auto 14px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.settings-section h2 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+.settings-note {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.settings-note strong {
+  color: var(--text);
+}
+
+.camera-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.camera-option {
+  min-height: 72px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 2px solid var(--line);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.camera-option.selected {
+  border-color: #38bdf8;
+  background: rgba(2, 132, 199, 0.25);
+}
+
+.camera-option-name {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.camera-option-hint {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.camera-option.selected .camera-option-hint {
+  color: var(--sky);
+  font-weight: 600;
+}
+
+.device-field {
+  margin-bottom: 12px;
+}
+
+.settings-facts {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 16px;
+}
+
+.settings-facts div {
+  min-width: 0;
+}
+
+.settings-facts dt {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.settings-facts dd {
+  margin: 2px 0 0;
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Confirmation dialog ---------- */
+
+.dialog-backdrop {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 30;
+  display: flex;
+  padding: 16px;
+  overflow-y: auto;
+  background: rgba(2, 6, 23, 0.72);
+}
+
+.dialog {
+  margin: auto;
+  width: min(100%, 460px);
+  padding: 20px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+}
+
+.dialog h2 {
+  margin: 0 0 8px;
+  font-size: 20px;
+}
+
+.dialog p {
+  margin: 0 0 16px;
+  color: #cbd5e1;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+/* ---------- Responsive ---------- */
+
+/* Short landscape (Huawei tablet with system bars, phones): tighter chrome. */
+@media (orientation: landscape) and (max-height: 600px) {
+  .topbar {
+    padding-top: calc(6px + var(--safe-top));
+    padding-bottom: 6px;
+  }
+  .topbar .btn {
+    min-height: 40px;
+    padding: 6px 12px;
+  }
+  .cam-pane {
+    padding-top: 10px;
+  }
+  .cam-hint {
+    display: none;
+  }
+  .school-title {
+    margin-top: 10px;
+  }
+}
+
+/* Very short landscape (phones). */
+@media (orientation: landscape) and (max-height: 420px) {
   .station {
-    grid-template-columns: 1fr;
-    grid-template-rows: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .topbar p {
+    display: none;
+  }
+  .card .photo {
+    width: clamp(84px, 28vh, 140px);
+    height: clamp(84px, 28vh, 140px);
+  }
+  .card img.logo {
+    max-height: 30vh;
+  }
+}
+
+/* Narrow landscape: let the result column shrink below 300px. */
+@media (orientation: landscape) and (max-width: 760px) {
+  .station {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+/* Portrait tablet and phone: one scrolling column, camera first. */
+@media (orientation: portrait) {
+  .app {
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .station {
+    flex: none;
+    grid-template-columns: minmax(0, 1fr);
   }
   .cam-pane {
     border-right: 0;
     border-bottom: 1px solid var(--line);
+    padding: 12px calc(12px + var(--safe-right)) 12px calc(12px + var(--safe-left));
+  }
+  .cam-frame {
+    flex: none;
+    height: clamp(260px, 52vh, 620px);
+  }
+  .logo-pane {
+    overflow: visible;
+    padding-bottom: calc(20px + var(--safe-bottom));
+  }
+  .card .photo {
+    width: clamp(140px, 40vw, 240px);
+    height: clamp(140px, 40vw, 240px);
+  }
+  .card img.logo {
+    max-height: clamp(110px, 24vh, 240px);
+  }
+}
+
+/* Phones in portrait: stack the header and widen the controls. */
+@media (orientation: portrait) and (max-width: 520px) {
+  .topbar-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+  .topbar-actions .btn {
+    flex: 1 1 0;
+    padding: 8px 10px;
+  }
+  .topbar-actions .pill {
+    flex: 1 0 100%;
+    justify-content: center;
+  }
+  .camera-options,
+  .settings-facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .dialog-actions .btn {
+    flex: 1 1 0;
+  }
+  .cam-idle-actions {
+    width: 100%;
+    flex-direction: column;
   }
 }
