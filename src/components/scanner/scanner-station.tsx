@@ -593,21 +593,17 @@ export function ScannerStation() {
           <div className="absolute inset-0 bg-[linear-gradient(160deg,transparent_40%,rgba(14,165,233,0.12))]" />
 
           <div className="relative z-10 flex w-full max-w-lg flex-col items-center gap-5">
-            {!popup && (
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-white/15 bg-white/5 text-sky-200">
-                <School className="h-8 w-8" />
-              </div>
-            )}
-
             <div
-              className={`w-full overflow-hidden rounded-3xl border bg-white/95 p-7 shadow-2xl transition-all duration-300 ${
-                popup?.kind === "success" || popup?.kind === "queued"
-                  ? "border-emerald-400/60"
-                  : popup?.kind === "already"
-                    ? "border-amber-400/60"
-                    : popup?.kind === "miss"
-                      ? "border-rose-400/60"
-                      : "border-white/15"
+              className={`w-full rounded-3xl border ${
+                popup
+                  ? `overflow-hidden bg-white/95 p-7 shadow-2xl transition-[border-color] duration-300 ${
+                      popup.kind === "success" || popup.kind === "queued"
+                        ? "border-emerald-400/60"
+                        : popup.kind === "already"
+                          ? "border-amber-400/60"
+                          : "border-rose-400/60"
+                    }`
+                  : "border-transparent"
               }`}
             >
               {!popup ? (
@@ -616,10 +612,10 @@ export function ScannerStation() {
                   <img
                     src={school.logoUrl}
                     alt={`${school.name} logo`}
-                    className="mx-auto max-h-52 w-auto object-contain"
+                    className="block h-auto max-h-[min(22rem,48vh)] w-full object-contain"
                   />
                 ) : (
-                  <div className="flex min-h-40 flex-col items-center justify-center gap-2 text-slate-700">
+                  <div className="flex min-h-40 w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-white/15 text-slate-300">
                     <School className="h-12 w-12 text-slate-400" />
                     <p className="text-sm">No school logo uploaded yet</p>
                   </div>
